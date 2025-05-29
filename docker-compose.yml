@@ -1,0 +1,10 @@
+services:
+  app:
+    build:
+      context: .
+    image: store_app_be:latest
+    container_name: store_app_be
+    env_file:
+      - .env
+    ports:
+      - "${APP_PORT_LOCAL_TO_CONTAINER}:${APP_PORT_CONTAINER}"

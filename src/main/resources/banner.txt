@@ -1,0 +1,22 @@
+  SSSSSSSSSSSSSSS          tttt
+ SS:::::::::::::::S      ttt:::t
+S:::::SSSSSS::::::S      t:::::t
+S:::::S     SSSSSSS      t:::::t
+S:::::S            ttttttt:::::ttttttt       ooooooooooo   rrrrr   rrrrrrrrr       eeeeeeeeeeee
+S:::::S            t:::::::::::::::::t     oo:::::::::::oo r::::rrr:::::::::r    ee::::::::::::ee
+ S::::SSSS         t:::::::::::::::::t    o:::::::::::::::or:::::::::::::::::r  e::::::eeeee:::::ee
+  SS::::::SSSSS    tttttt:::::::tttttt    o:::::ooooo:::::orr::::::rrrrr::::::re::::::e     e:::::e
+    SSS::::::::SS        t:::::t          o::::o     o::::o r:::::r     r:::::re:::::::eeeee::::::e
+       SSSSSS::::S       t:::::t          o::::o     o::::o r:::::r     rrrrrrre:::::::::::::::::e
+            S:::::S      t:::::t          o::::o     o::::o r:::::r            e::::::eeeeeeeeeee
+            S:::::S      t:::::t    tttttto::::o     o::::o r:::::r            e:::::::e
+SSSSSSS     S:::::S      t::::::tttt:::::to:::::ooooo:::::o r:::::r            e::::::::e
+S::::::SSSSSS:::::S      tt::::::::::::::to:::::::::::::::o r:::::r             e::::::::eeeeeeee
+S:::::::::::::::SS         tt:::::::::::tt oo:::::::::::oo  r:::::r              ee:::::::::::::e
+ SSSSSSSSSSSSSSS             ttttttttttt     ooooooooooo    rrrrrrr                eeeeeeeeeeeeee
+   📦 Store APP –  ⚙️
+ ▸ Application : ${spring.application.name}
+ ▸ Profile     : ${spring.profiles.active}
+ ▸ Database    : ${spring.datasource.url}
+ ▸ Version     : ${app.version}
+ ▸ JWT Secured 🔐
