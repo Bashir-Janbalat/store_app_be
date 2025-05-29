@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @AllArgsConstructor
-public class CustomUserDetailsServiceImpl implements UserDetailsService {
+public class UserDetailsServiceImpl implements UserDetailsService {
 
     private final CustomerRepository customerRepository;
 
@@ -43,6 +43,7 @@ public class CustomUserDetailsServiceImpl implements UserDetailsService {
                 .accountLocked(false)
                 .accountExpired(false)
                 .credentialsExpired(false)
+                .disabled(false)
                 .build();
     }
 }
