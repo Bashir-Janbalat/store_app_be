@@ -21,7 +21,7 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/auth")
 @Slf4j
-@Tag(name = "Authentication", description = "Endpoints for user authentication and password management")
+@Tag(name = "Authentication", description = "Endpoints for customer authentication and password management")
 public class AuthController {
 
     private final AuthService authService;
