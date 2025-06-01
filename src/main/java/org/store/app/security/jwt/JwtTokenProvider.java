@@ -10,6 +10,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.store.app.security.userdetails.CustomUserDetails;
 
 import javax.crypto.SecretKey;
 import java.security.Key;
@@ -36,12 +37,26 @@ public class JwtTokenProvider {
 
 
     public String generateToken(Authentication authentication) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
 
-        String username = authentication.getName();
+        String username = userDetails.getUsername();
+        String email = userDetails.getEmail();
+        String name = userDetails.getName();
+        Long id = userDetails.getId();
+
         Date currentDate = new Date();
         Date expireDate = new Date(currentDate.getTime() + jwtExpirationTime);
 
-        return Jwts.builder().subject(username).claim("roles", authentication.getAuthorities()).issuedAt(new Date()).expiration(expireDate).signWith(key()).compact();
+        return Jwts.builder()
+                .subject(username)
+                .claim("id", id)
+                .claim("email", email)
+                .claim("name", name)
+                .claim("roles", userDetails.getAuthorities())
+                .issuedAt(currentDate)
+                .expiration(expireDate)
+                .signWith(key())
+                .compact();
     }
 
     private Key key() {
