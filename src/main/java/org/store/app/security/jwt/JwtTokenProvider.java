@@ -40,7 +40,6 @@ public class JwtTokenProvider {
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
 
         String username = userDetails.getUsername();
-        String email = userDetails.getEmail();
         String name = userDetails.getName();
         Long id = userDetails.getId();
 
@@ -50,7 +49,6 @@ public class JwtTokenProvider {
         return Jwts.builder()
                 .subject(username)
                 .claim("id", id)
-                .claim("email", email)
                 .claim("name", name)
                 .claim("roles", userDetails.getAuthorities())
                 .issuedAt(currentDate)
