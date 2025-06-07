@@ -1,12 +1,13 @@
 package org.store.app.service;
 
+import org.store.app.common.ValueWrapper;
 import org.store.app.dto.CartItemDTO;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 public interface CartService {
-    List<CartItemDTO> getCartItemsForCurrentCustomer(String email, String sessionId);
+    ValueWrapper<List<CartItemDTO>> getCartItemsForCurrentCustomer(String email, String sessionId);
 
     void addToCart(String email, String sessionId, Long productId, BigDecimal unitPrice, int quantity);
 

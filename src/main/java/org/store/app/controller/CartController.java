@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.store.app.common.ValueWrapper;
 import org.store.app.dto.AddToCartRequest;
 import org.store.app.dto.CartItemDTO;
 import org.store.app.dto.UpdateCartRequest;
@@ -34,9 +35,9 @@ public class CartController {
             @Parameter(description = "Session ID for guest users") @RequestParam(required = false) String sessionId) {
         String email = getCurrentUserEmail();
         log.info("GET /api/cart/items - email='{}', sessionId='{}'", email, sessionId);
-        List<CartItemDTO> items = cartService.getCartItemsForCurrentCustomer(email, sessionId);
-        log.debug("Cart contains {} items", items.size());
-        return ResponseEntity.ok(items);
+        ValueWrapper<List<CartItemDTO>> items = cartService.getCartItemsForCurrentCustomer(email, sessionId);
+        log.debug("Cart contains {} items", items.getValue().size());
+        return ResponseEntity.ok(items.getValue());
     }
 
     @Operation(summary = "Add item to cart", description = "Add a new item to the cart of the logged-in user or guest")
@@ -86,6 +87,7 @@ public class CartController {
     @DeleteMapping("/clear")
     public ResponseEntity<Void> clearCart(
             @Parameter(description = "Session ID for guest users") @RequestParam(required = false) String sessionId) {
+
         String email = getCurrentUserEmail();
         log.info("DELETE /api/cart/clear called with email='{}', sessionId='{}'", email, sessionId);
         validateSessionOrEmail(email, sessionId);
