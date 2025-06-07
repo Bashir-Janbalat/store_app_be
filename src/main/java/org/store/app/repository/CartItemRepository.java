@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.store.app.model.Cart;
 import org.store.app.model.CartItem;
 import org.store.app.projection.CartItemProductProjection;
 
@@ -35,5 +36,9 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long> {
     List<CartItemProductProjection> findCartItemsWithProductInfo(@Param("cartId") Long cartId);
 
     Optional<CartItem> findByCartIdAndProductId(Long id, Long productId);
+
+    void deleteAllByCartId(Long id);
+
+    List<CartItem> findByCart(Cart sessionCart);
 }
 

@@ -19,7 +19,9 @@ import org.store.app.service.CartService;
 import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -29,70 +31,52 @@ public class CartServiceImpl implements CartService {
     private final CartItemRepository cartItemRepository;
     private final CustomerRepository customerRepository;
 
-
+    @Override
+    @Transactional(readOnly = true)
     public List<CartItemDTO> getCartItemsForCurrentCustomer(String email, String sessionId) {
-        Customer customer = null;
-        if (email != null && !email.isEmpty()) {
-            customer = customerRepository.findByEmail(email).orElse(null);
-        }
+        Cart cart = findActiveCartOrNull(email, sessionId);
 
-        Optional<Cart> cart;
-
-        if (customer != null) {
-            cart = cartRepository.findByCustomerAndStatus(customer, CartStatus.ACTIVE);
-        } else if (sessionId != null && !sessionId.isEmpty()) {
-            cart = cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE);
-        } else {
+        if (cart == null) {
             return Collections.emptyList();
         }
 
-        if (cart.isEmpty()) {
-            return Collections.emptyList();
-        } else {
-            List<CartItemProductProjection> projections = cartItemRepository.findCartItemsWithProductInfo(cart.get().getId());
+        List<CartItemProductProjection> projections = cartItemRepository.findCartItemsWithProductInfo(cart.getId());
 
-            return projections.stream()
-                    .map(p -> new CartItemDTO(
-                            p.getProductId(),
-                            p.getQuantity(),
-                            p.getUnitPrice(),
-                            new ProductInfoDTO(p.getName(), p.getDescription(), p.getImageUrl())
-                    ))
-                    .toList();
-        }
+        return projections.stream()
+                .map(p -> new CartItemDTO(
+                        p.getProductId(),
+                        p.getQuantity(),
+                        p.getUnitPrice(),
+                        new ProductInfoDTO(p.getName(), p.getDescription(), p.getImageUrl())
+                ))
+                .toList();
     }
 
+    @Override
     @Transactional
     public void addToCart(String email, String sessionId, Long productId, BigDecimal unitPrice, int quantity) {
         if (quantity <= 0) {
             throw new IllegalArgumentException("Quantity must be greater than zero");
         }
 
-        Customer customer = null;
-        if (email != null && !email.isEmpty()) {
-            customer = customerRepository.findByEmail(email)
-                    .orElseThrow(() -> new ResourceNotFoundException("Customer with email {" + email + "} not found"));
-        }
-
-        Cart cart = null;
-
-        if (customer != null) {
-            cart = cartRepository.findByCustomerAndStatus(customer, CartStatus.ACTIVE).orElse(null);
-        }
-        if (cart == null && sessionId != null && !sessionId.isEmpty()) {
-            cart = cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE).orElse(null);
-        }
+        Cart cart = findActiveCartOrNull(email, sessionId);
 
         if (cart == null) {
             cart = new Cart();
-            cart.setCustomer(customer);
-            cart.setSessionId(sessionId);
             cart.setStatus(CartStatus.ACTIVE);
+            if (email != null && !email.isBlank()) {
+                Customer customer = customerRepository.findByEmail(email)
+                        .orElseThrow(() -> new ResourceNotFoundException("Customer with email {" + email + "} not found"));
+                cart.setCustomer(customer);
+            } else {
+                cart.setSessionId(sessionId);
+            }
             cart = cartRepository.save(cart);
         }
 
         Cart finalCart = cart;
-        CartItem item = cartItemRepository.findByCartIdAndProductId(cart.getId(), productId)
+
+        CartItem item = cartItemRepository.findByCartIdAndProductId(finalCart.getId(), productId)
                 .map(existingItem -> {
                     existingItem.setQuantity(existingItem.getQuantity() + quantity);
                     return existingItem;
@@ -101,7 +85,7 @@ public class CartServiceImpl implements CartService {
                     CartItem newItem = new CartItem();
                     newItem.setCart(finalCart);
                     newItem.setProductId(productId);
-                    newItem.setUnitPrice(unitPrice);
+                    newItem.setUnitPrice(unitPrice); //  تأكد من أنك تثق بهذا السعر أو حمّله من قاعدة البيانات
                     newItem.setQuantity(quantity);
                     return newItem;
                 });
@@ -109,24 +93,10 @@ public class CartServiceImpl implements CartService {
         cartItemRepository.save(item);
     }
 
+    @Override
     @Transactional
     public void updateCartItemQuantity(String email, String sessionId, Long productId, int newQuantity) {
-        Customer customer = null;
-        if (email != null && !email.isEmpty()) {
-            customer = customerRepository.findByEmail(email)
-                    .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
-        }
-
-        Cart cart;
-        if (customer != null) {
-            cart = cartRepository.findByCustomerAndStatus(customer, CartStatus.ACTIVE)
-                    .orElseThrow(() -> new ResourceNotFoundException("Cart not found"));
-        } else if (sessionId != null && !sessionId.isEmpty()) {
-            cart = cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE)
-                    .orElseThrow(() -> new ResourceNotFoundException("Cart not found"));
-        } else {
-            throw new ResourceNotFoundException("Cart not found");
-        }
+        Cart cart = findActiveCart(email, sessionId);
 
         CartItem item = cartItemRepository.findByCartIdAndProductId(cart.getId(), productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Item not found in cart"));
@@ -139,28 +109,107 @@ public class CartServiceImpl implements CartService {
         }
     }
 
+    @Override
     @Transactional
     public void removeFromCart(String email, String sessionId, Long productId) {
-        Customer customer = null;
-        if (email != null && !email.isEmpty()) {
-            customer = customerRepository.findByEmail(email)
-                    .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
-        }
-
-        Cart cart;
-        if (customer != null) {
-            cart = cartRepository.findByCustomerAndStatus(customer, CartStatus.ACTIVE)
-                    .orElseThrow(() -> new ResourceNotFoundException("Cart not found"));
-        } else if (sessionId != null && !sessionId.isEmpty()) {
-            cart = cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE)
-                    .orElseThrow(() -> new ResourceNotFoundException("Cart not found"));
-        } else {
-            throw new ResourceNotFoundException("Cart not found");
-        }
+        Cart cart = findActiveCart(email, sessionId);
 
         CartItem item = cartItemRepository.findByCartIdAndProductId(cart.getId(), productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cart item not found"));
 
         cartItemRepository.delete(item);
+    }
+
+    @Override
+    @Transactional
+    public void clearCart(String email, String sessionId) {
+        Cart cart = findActiveCartOrNull(email, sessionId);
+        if (cart == null) {
+            return;
+        }
+        cartItemRepository.deleteAllByCartId(cart.getId());
+    }
+
+    @Transactional
+    @Override
+    public void mergeCartOnLogin(String email, String sessionId) {
+        Customer customer = customerRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+
+        Optional<Cart> userCartOpt = cartRepository.findByCustomerAndStatus(customer, CartStatus.ACTIVE);
+        Optional<Cart> sessionCartOpt = cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE);
+
+        if (sessionCartOpt.isEmpty()) {
+            // لا يوجد سلة مؤقتة، لا شيء لدمجه
+            return;
+        }
+
+        Cart sessionCart = sessionCartOpt.get();
+
+        if (userCartOpt.isEmpty()) {
+            // ليس لدى المستخدم سلة، قم بتحويل السلة المؤقتة إلى سلة المستخدم
+            sessionCart.setCustomer(customer);
+            sessionCart.setSessionId(null);
+            cartRepository.save(sessionCart);
+        } else {
+            Cart userCart = userCartOpt.get();
+
+            // دمج عناصر السلة
+            List<CartItem> sessionItems = cartItemRepository.findByCart(sessionCart);
+            List<CartItem> userItems = cartItemRepository.findByCart(userCart);
+
+            Map<Long, CartItem> userItemsMap = userItems.stream()
+                    .collect(Collectors.toMap(CartItem::getProductId, item -> item));
+
+            for (CartItem sessionItem : sessionItems) {
+                CartItem userItem = userItemsMap.get(sessionItem.getProductId());
+                if (userItem != null) {
+                    // دمج الكميات
+                    userItem.setQuantity(userItem.getQuantity() + sessionItem.getQuantity());
+                    cartItemRepository.save(userItem);
+                    cartItemRepository.delete(sessionItem);
+                } else {
+                    // إنشاء عنصر جديد للسلة الجديدة
+
+                    CartItem newItem = new CartItem();
+                    newItem.setCart(userCart);
+                    newItem.setProductId(sessionItem.getProductId());
+                    newItem.setQuantity(sessionItem.getQuantity());
+                    newItem.setUnitPrice(sessionItem.getUnitPrice());
+                    cartItemRepository.save(newItem);
+
+                    // حذف العنصر من السلة المؤقتة
+                    cartItemRepository.delete(sessionItem);
+                }
+            }
+            // حذف السلة المؤقتة إذا فارغة الآن
+            if (cartItemRepository.findByCart(sessionCart).isEmpty()) {
+                cartRepository.delete(sessionCart);
+            }
+        }
+    }
+
+    private Cart findActiveCartOrNull(String email, String sessionId) {
+        if (email != null && !email.isBlank()) {
+            Optional<Customer> customerOpt = customerRepository.findByEmail(email);
+            if (customerOpt.isPresent()) {
+                Optional<Cart> cartOpt = cartRepository.findByCustomerAndStatus(customerOpt.get(), CartStatus.ACTIVE);
+                if (cartOpt.isPresent()) return cartOpt.get();
+            }
+        }
+
+        if (sessionId != null && !sessionId.isBlank()) {
+            return cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE).orElse(null);
+        }
+
+        return null;
+    }
+
+    private Cart findActiveCart(String email, String sessionId) {
+        Cart cart = findActiveCartOrNull(email, sessionId);
+        if (cart == null) {
+            throw new ResourceNotFoundException("Cart not found for given email/sessionId");
+        }
+        return cart;
     }
 }
