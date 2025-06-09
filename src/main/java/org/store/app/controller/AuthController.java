@@ -1,6 +1,7 @@
 package org.store.app.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,10 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import org.store.app.dto.*;
 import org.store.app.security.jwt.JwtTokenProvider;
 import org.store.app.security.userdetails.CustomUserDetails;
-import org.store.app.service.AuthService;
-import org.store.app.service.CartService;
-import org.store.app.service.CustomerService;
-import org.store.app.service.PasswordResetTokenService;
+import org.store.app.service.*;
 
 import java.util.Optional;
 
@@ -38,6 +36,7 @@ public class AuthController {
     private final CustomerService customerService;
     private final JwtTokenProvider jwtTokenProvider;
     private final CartService cartService;
+    private final WishlistService wishlistService;
 
     @Value("${app.cookie.secure}")
     private boolean secure;
@@ -46,7 +45,19 @@ public class AuthController {
     private String sameSite;
 
     @PostMapping("/login")
-    public ResponseEntity<Void> login(@RequestParam(required = false) String sessionId, @RequestBody LoginDTO loginDto) {
+    @Operation(
+            summary = "Customer login",
+            description = "Authenticate customer and return JWT token as HttpOnly cookie." +
+                          " Optionally merge cart and wishlist from guest session.",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Login successful, token set in cookie"),
+                    @ApiResponse(responseCode = "401", description = "Invalid credentials")
+            }
+    )
+    public ResponseEntity<Void> login(
+            @Parameter(description = "Session ID for guest users to merge their cart and wishlist on login")
+            @RequestParam(required = false) String sessionId,
+            @RequestBody LoginDTO loginDto) {
         String token = authService.login(loginDto);
 
         ResponseCookie cookie = ResponseCookie.from("access_token", token)
@@ -58,8 +69,9 @@ public class AuthController {
                 .build();
 
         if (sessionId != null) {
-            log.info("Merging cart for session ID: {} and user: {}", sessionId, loginDto.getEmail());
+            log.info("Merging cart and wishlist for session ID: {} and user: {}", sessionId, loginDto.getEmail());
             cartService.mergeCartOnLogin(loginDto.getEmail(), sessionId);
+            wishlistService.mergeWishlistOnLogin(loginDto.getEmail(), sessionId);
         }
 
         return ResponseEntity.ok()

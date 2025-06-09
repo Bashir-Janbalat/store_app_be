@@ -8,8 +8,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.store.app.common.ValueWrapper;
 import org.store.app.dto.AddToCartRequest;
@@ -18,6 +16,9 @@ import org.store.app.dto.UpdateCartRequest;
 import org.store.app.service.CartService;
 
 import java.util.List;
+
+import static org.store.app.util.RequestUtils.getCurrentUserEmail;
+import static org.store.app.util.RequestUtils.validateSessionOrEmail;
 
 @RestController
 @RequestMapping("/api/cart")
@@ -74,7 +75,7 @@ public class CartController {
     @DeleteMapping("/remove")
     public ResponseEntity<Void> removeFromCart(
             @Parameter(description = "Session ID for guest users") @RequestParam(required = false) String sessionId,
-            @RequestParam Long productId) {
+            @Parameter(description = "ID of the product to remove from cart", required = true, example = "101") @RequestParam Long productId) {
         String email = getCurrentUserEmail();
         log.info("DELETE /api/cart/remove called with email='{}', sessionId='{}', productId={}", email, sessionId, productId);
         validateSessionOrEmail(email, sessionId);
@@ -95,17 +96,4 @@ public class CartController {
         return ResponseEntity.ok().build();
     }
 
-    private String getCurrentUserEmail() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated() && !"anonymousUser".equals(authentication.getPrincipal())) {
-            return authentication.getName();
-        }
-        return null;
-    }
-
-    private void validateSessionOrEmail(String email, String sessionId) {
-        if ((email == null || email.isBlank()) && (sessionId == null || sessionId.isBlank())) {
-            throw new IllegalArgumentException("Must provide either email or sessionId");
-        }
-    }
 }

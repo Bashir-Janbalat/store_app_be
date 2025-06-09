@@ -35,12 +35,13 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf
-                        .ignoringRequestMatchers("/api/auth/**","/api/cart/**")
+                        .ignoringRequestMatchers("/api/auth/**","/api/cart/**","/api/wishlist/**")
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                 )
                 .authorizeHttpRequests((authorize) -> {
                     authorize.requestMatchers("/api/auth/**").permitAll();
                     authorize.requestMatchers("/api/cart/**").permitAll();
+                    authorize.requestMatchers("/api/wishlist/**").permitAll();
                     authorize.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
                     authorize.requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll();
                     authorize.anyRequest().authenticated();
