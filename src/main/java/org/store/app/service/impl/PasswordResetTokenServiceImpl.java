@@ -29,15 +29,15 @@ public class PasswordResetTokenServiceImpl implements PasswordResetTokenService 
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailService emailService;
 
-    @Value("${domain-to-rest-password}")
-    private String domainToRestPassword;
+    @Value("${domain}")
+    private String domain;
 
     @Override
     @Transactional
     public PasswordResetToken createTokenFor(String email) {
         Customer customer = customerRepository.findByEmail(email).orElseThrow(() -> new ResourceNotFoundException("Customer not found: " + email));
         String jwtToken = jwtTokenProvider.generatePasswordResetToken(customer.getEmail());
-        String resetLink = domainToRestPassword + "?token=" + jwtToken;
+        String resetLink = domain + "reset-password" + "?token=" + jwtToken;
         PasswordResetToken token = PasswordResetToken.builder()
                 .token(jwtToken)
                 .customer(customer)

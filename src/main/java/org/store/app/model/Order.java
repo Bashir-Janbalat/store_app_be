@@ -6,6 +6,8 @@ import lombok.EqualsAndHashCode;
 import org.store.app.enums.OrderStatus;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "orders")
@@ -29,4 +31,7 @@ public class Order extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "billing_address_id")
     private CustomerAddress billingAddress;
+
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<OrderItem> items = new ArrayList<>();
 }
