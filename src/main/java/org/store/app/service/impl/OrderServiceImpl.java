@@ -2,6 +2,10 @@ package org.store.app.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.store.app.dto.OrderDTO;
@@ -45,10 +49,12 @@ public class OrderServiceImpl implements OrderService {
     private final EmailService emailService;
     private final CartService cartService;
     private final OrderItemMapper orderItemMapper;
+    private final CacheManager cacheManager;
 
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "orders", key = "#customerId + '-' + #status")
     public List<OrderDTO> getOrdersByCustomerAndStatus(Long customerId, OrderStatus status) {
         List<Order> orders = orderRepository.findByCustomerIdAndStatus(customerId, status);
 
@@ -82,6 +88,13 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @Caching(evict = {
+            @CacheEvict(value = "orders", key = "#customerId + '-PENDING'"),
+            @CacheEvict(value = "orders", key = "#customerId + '-PROCESSING'"),
+            @CacheEvict(value = "orders", key = "#customerId + '-SHIPPED'"),
+            @CacheEvict(value = "orders", key = "#customerId + '-DELIVERED'"),
+            @CacheEvict(value = "orders", key = "#customerId + '-CANCELLED'")
+    })
     public OrderResponseCreatedDTO createOrder(OrderDTO orderDTO, Long customerId) {
         log.info("Creating order for customerId: {}", customerId);
         Customer customer = customerRepository.findById(customerId)
@@ -133,12 +146,25 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public void updateOrderStatus(Long orderId, OrderStatus status) {
-        log.info("Updating order status. Order ID: {}, New Status: {}", orderId, status);
+    public void updateOrderStatus(Long orderId, OrderStatus newStatus) {
+        log.info("Updating order status. Order ID: {}, New Status: {}", orderId, newStatus);
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
-        order.setStatus(status);
+
+        Long customerId = order.getCustomer().getId();
+        OrderStatus oldStatus = order.getStatus();
+
+        order.setStatus(newStatus);
         orderRepository.save(order);
-        log.info("Order status updated successfully. Order ID: {}, Status: {}", orderId, status);
+        log.info("Order status updated successfully. Order ID: {}, Status: {}", orderId, newStatus);
+
+        String oldKey = customerId + "-" + oldStatus;
+        String newKey = customerId + "-" + newStatus;
+        
+        var cache = cacheManager.getCache("orders");
+        if (cache != null) {
+            cache.evict(oldKey);
+            cache.evict(newKey);
+        }
     }
 
     @Override

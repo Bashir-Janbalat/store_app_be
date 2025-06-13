@@ -2,6 +2,8 @@ package org.store.app.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +30,7 @@ public class CustomerAddressServiceImpl implements CustomerAddressService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "customerAddresses", key = "#customerId")
     public List<CustomerAddressDTO> getAllAddressesForCurrentCustomer(Long customerId) {
         log.info("Fetching all non-deleted addresses for customer id: {}", customerId);
         List<CustomerAddress> addresses = addressRepository.findByCustomerIdAndDeletedFalse(customerId);
@@ -39,6 +42,7 @@ public class CustomerAddressServiceImpl implements CustomerAddressService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "customerAddresses", key = "#customerId")
     public CustomerAddressDTO createAddress(CustomerAddressDTO addressDTO, Long customerId) {
         log.info("Creating new address for customer id: {}", customerId);
         Customer customer = customerRepository.findById(customerId)
@@ -58,6 +62,7 @@ public class CustomerAddressServiceImpl implements CustomerAddressService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "customerAddresses", key = "#customerId")
     public CustomerAddressDTO updateAddress(Long addressId, CustomerAddressDTO addressDTO, Long customerId) {
         log.info("Updating address with id: {} for customer id: {}", addressId, customerId);
         CustomerAddress existing = getAddressIfOwnedByCustomer(addressId, customerId);
@@ -104,6 +109,7 @@ public class CustomerAddressServiceImpl implements CustomerAddressService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "customerAddresses", key = "#customerId")
     public void softDeleteAddress(Long addressId, Long customerId) {
         log.info("Soft deleting address id: {} for customer id: {}", addressId, customerId);
         CustomerAddress existing = getAddressIfOwnedByCustomer(addressId, customerId);
