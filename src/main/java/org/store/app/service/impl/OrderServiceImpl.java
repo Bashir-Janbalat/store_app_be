@@ -83,26 +83,32 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public OrderResponseCreatedDTO createOrder(OrderDTO orderDTO, Long customerId) {
+        log.info("Creating order for customerId: {}", customerId);
         Customer customer = customerRepository.findById(customerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found with id: " + customerId));
 
         if (orderDTO.getShippingAddressId() == null) {
             Long defaultShippingId = customerAddressService.getDefaultAddressId(customerId, AddressType.SHIPPING);
+            log.info("Using default shipping address with ID: {}", defaultShippingId);
             orderDTO.setShippingAddressId(defaultShippingId);
         } else {
+            log.info("Verifying provided shipping address ID: {}", orderDTO.getShippingAddressId());
             customerAddressService.verifyAddressOwnership(orderDTO.getShippingAddressId(), customerId);
         }
 
         if (orderDTO.getBillingAddressId() == null) {
             Long defaultBillingId = customerAddressService.getDefaultAddressId(customerId, AddressType.BILLING);
+            log.info("Using default billing address with ID: {}", defaultBillingId);
             orderDTO.setBillingAddressId(defaultBillingId);
         } else {
+            log.info("Verifying provided billing address ID: {}", orderDTO.getBillingAddressId());
             customerAddressService.verifyAddressOwnership(orderDTO.getBillingAddressId(), customerId);
         }
 
         Order order = orderMapper.toEntity(orderDTO);
         order.setCustomer(customer);
 
+        log.info("Fetching cart with ID: {}", orderDTO.getCartId());
         Cart cart = cartService.getCartById(orderDTO.getCartId(), CartStatus.ACTIVE, customer.getId());
 
         List<OrderItem> orderItems = cart.getItems().stream()
@@ -120,6 +126,7 @@ public class OrderServiceImpl implements OrderService {
 
         order.setStatus(OrderStatus.PENDING);
         Order savedOrder = orderRepository.save(order);
+        log.info("Order created successfully with ID: {}, Total amount: {}", savedOrder.getId(), savedOrder.getTotalAmount());
         return new OrderResponseCreatedDTO(savedOrder.getId(), savedOrder.getTotalAmount());
     }
 
@@ -127,9 +134,11 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public void updateOrderStatus(Long orderId, OrderStatus status) {
+        log.info("Updating order status. Order ID: {}, New Status: {}", orderId, status);
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
         order.setStatus(status);
         orderRepository.save(order);
+        log.info("Order status updated successfully. Order ID: {}, Status: {}", orderId, status);
     }
 
     @Override
