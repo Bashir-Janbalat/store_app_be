@@ -7,7 +7,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.store.app.common.ValueWrapper;
+import org.store.app.dto.CartDTO;
 import org.store.app.dto.CartItemDTO;
 import org.store.app.dto.ProductInfoDTO;
 import org.store.app.enums.CartStatus;
@@ -22,7 +22,6 @@ import org.store.app.repository.CustomerRepository;
 import org.store.app.service.CartService;
 
 import java.math.BigDecimal;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,13 +38,13 @@ public class CartServiceImpl implements CartService {
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "cartItems", key = "#email != null ? #email : #sessionId", unless = "#result == null || #result.value.isEmpty()")
-    public ValueWrapper<List<CartItemDTO>> getCartItemsForCurrentCustomer(String email, String sessionId) {
+    @Cacheable(value = "cart", key = "#email != null ? #email : #sessionId")
+    public CartDTO getActiveCart(String email, String sessionId) {
         String cacheKey = email != null ? email : sessionId;
         Cart cart = findActiveCartOrNull(email, sessionId);
 
         if (cart == null) {
-            return new ValueWrapper<>(Collections.emptyList());
+            return new CartDTO();
         }
 
         List<CartItemProductProjection> projections = cartItemRepository.findCartItemsWithProductInfo(cart.getId());
@@ -59,14 +58,14 @@ public class CartServiceImpl implements CartService {
                 ))
                 .toList();
         log.info("Loaded {} cart item(s) from database for key: '{}'", result.size(), cacheKey);
-        return new ValueWrapper<>(result);
+        return new CartDTO(cart.getId(), result);
     }
 
 
     @Override
     @Transactional
     @Caching(evict = {
-            @CacheEvict(value = "cartItems", key = "#email != null ? #email : #sessionId")
+            @CacheEvict(value = "cart", key = "#email != null ? #email : #sessionId")
     })
     public void addToCart(String email, String sessionId, Long productId, BigDecimal unitPrice, int quantity) {
         logCacheEvict(email, sessionId);
@@ -111,7 +110,7 @@ public class CartServiceImpl implements CartService {
     @Override
     @Transactional
     @Caching(evict = {
-            @CacheEvict(value = "cartItems", key = "#email != null ? #email : #sessionId")
+            @CacheEvict(value = "cart", key = "#email != null ? #email : #sessionId")
     })
     public void updateCartItemQuantity(String email, String sessionId, Long productId, int newQuantity) {
         logCacheEvict(email, sessionId);
@@ -131,7 +130,7 @@ public class CartServiceImpl implements CartService {
     @Override
     @Transactional
     @Caching(evict = {
-            @CacheEvict(value = "cartItems", key = "#email != null ? #email : #sessionId")
+            @CacheEvict(value = "cart", key = "#email != null ? #email : #sessionId")
     })
     public void removeFromCart(String email, String sessionId, Long productId) {
         logCacheEvict(email, sessionId);
@@ -146,7 +145,7 @@ public class CartServiceImpl implements CartService {
     @Override
     @Transactional
     @Caching(evict = {
-            @CacheEvict(value = "cartItems", key = "#email != null ? #email : #sessionId")
+            @CacheEvict(value = "cart", key = "#email != null ? #email : #sessionId")
     })
     public void clearCart(String email, String sessionId) {
         logCacheEvict(email, sessionId);
@@ -160,8 +159,8 @@ public class CartServiceImpl implements CartService {
     @Transactional
     @Override
     @Caching(evict = {
-            @CacheEvict(value = "cartItems", key = "#email"),
-            @CacheEvict(value = "cartItems", key = "#sessionId")
+            @CacheEvict(value = "cart", key = "#email"),
+            @CacheEvict(value = "cart", key = "#sessionId")
     })
     public void mergeCartOnLogin(String email, String sessionId) {
         log.info("Cache 'cartItems' evicted for keys: '{}' and '{}'", email, sessionId);
@@ -220,6 +219,14 @@ public class CartServiceImpl implements CartService {
             }
         }
     }
+
+    @Override
+    @Cacheable(value = "cartById", key = "#cartId + '-' + #status + '-' + #customerId")
+    public Cart getCartById(Long cartId, CartStatus status, Long customerId) {
+        return cartRepository.findByIdAndStatusAndCustomerId(cartId, status, customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cart not found with id: " + cartId));
+    }
+
     private void logCacheEvict(String email, String sessionId) {
         String key = email != null ? email : sessionId;
         log.info("Cache 'cartItems' evicted for key: '{}'", key);
@@ -241,7 +248,8 @@ public class CartServiceImpl implements CartService {
         return null;
     }
 
-    private Cart findActiveCart(String email, String sessionId) {
+
+    public Cart findActiveCart(String email, String sessionId) {
         Cart cart = findActiveCartOrNull(email, sessionId);
         if (cart == null) {
             throw new ResourceNotFoundException("Cart not found for given email/sessionId");

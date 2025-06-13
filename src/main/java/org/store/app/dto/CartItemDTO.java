@@ -4,7 +4,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.store.app.projection.CartItemProductProjection;
 
 import java.math.BigDecimal;
 
@@ -21,14 +20,4 @@ public class CartItemDTO {
     @Schema(description = "Basic product information")
     private ProductInfoDTO product;
 
-    public CartItemDTO(CartItemProductProjection projection) {
-        this.productId = projection.getProductId();
-        this.quantity = projection.getQuantity();
-        this.unitPrice = projection.getUnitPrice();
-        this.product = new ProductInfoDTO(
-                projection.getName(),
-                projection.getDescription(),
-                projection.getImageUrl()
-        );
-    }
 }

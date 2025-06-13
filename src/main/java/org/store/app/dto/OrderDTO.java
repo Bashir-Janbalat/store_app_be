@@ -19,11 +19,16 @@ import java.util.List;
 public class OrderDTO extends BaseDTO implements Serializable {
 
     private Long customerId;
-    private OrderStatus status;
-    private BigDecimal totalAmount;
+    private Long cartId;
+
     private Long shippingAddressId;
     private CustomerAddressDTO shippingAddress;
-    private CustomerAddressDTO billingAddress;
     private Long billingAddressId;
+    private CustomerAddressDTO billingAddress;
+
+    private OrderStatus status;
+
+    private BigDecimal totalAmount;
+
     private List<OrderItemDTO> items;
 }

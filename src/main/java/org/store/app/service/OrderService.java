@@ -8,7 +8,7 @@ import java.util.List;
 
 public interface OrderService {
 
-    List<OrderDTO> getAllOrdersForCurrentCustomer(Long customerId);
+    List<OrderDTO> getOrdersByCustomerAndStatus(Long customerId,OrderStatus status);
 
     OrderResponseCreatedDTO createOrder(OrderDTO orderDTO, Long customerId);
 

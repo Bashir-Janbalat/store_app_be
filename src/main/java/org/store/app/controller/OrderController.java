@@ -8,6 +8,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.store.app.dto.OrderDTO;
 import org.store.app.dto.OrderResponseCreatedDTO;
+import org.store.app.enums.OrderStatus;
 import org.store.app.security.userdetails.CustomUserDetails;
 import org.store.app.service.OrderService;
 
@@ -32,8 +33,9 @@ public class OrderController {
     }
 
     @GetMapping
-    public ResponseEntity<List<OrderDTO>> getAllOrdersForCurrentCustomer(@AuthenticationPrincipal CustomUserDetails userDetails) {
-        List<OrderDTO> orderDTOS = orderService.getAllOrdersForCurrentCustomer(userDetails.getId());
+    public ResponseEntity<List<OrderDTO>> getAllOrdersForCurrentCustomer(
+            @AuthenticationPrincipal CustomUserDetails userDetails, @RequestParam(defaultValue = "PROCESSING") OrderStatus status) {
+        List<OrderDTO> orderDTOS = orderService.getOrdersByCustomerAndStatus(userDetails.getId(), status);
         return ResponseEntity.ok(orderDTOS);
     }
 }

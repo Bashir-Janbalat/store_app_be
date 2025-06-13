@@ -17,4 +17,5 @@ public class OrderItemDTO extends BaseDTO implements Serializable {
     private Integer quantity;
     private BigDecimal unitPrice;
     private BigDecimal totalPrice;
+    private ProductInfoDTO ProductInfo;
 }

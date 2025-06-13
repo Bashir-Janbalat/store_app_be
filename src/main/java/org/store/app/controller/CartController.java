@@ -9,13 +9,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.store.app.common.ValueWrapper;
 import org.store.app.dto.AddToCartRequest;
-import org.store.app.dto.CartItemDTO;
+import org.store.app.dto.CartDTO;
 import org.store.app.dto.UpdateCartRequest;
 import org.store.app.service.CartService;
-
-import java.util.List;
 
 import static org.store.app.util.RequestUtils.getCurrentUserEmail;
 import static org.store.app.util.RequestUtils.validateSessionOrEmail;
@@ -29,16 +26,16 @@ public class CartController {
 
     private final CartService cartService;
 
-    @Operation(summary = "Get cart items", description = "Retrieve the items in the current customer's or guest's cart")
-    @ApiResponse(responseCode = "200", description = "Cart items retrieved successfully")
-    @GetMapping("/items")
-    public ResponseEntity<List<CartItemDTO>> getCartItems(
-            @Parameter(description = "Session ID for guest users") @RequestParam(required = false) String sessionId) {
+    @Operation(summary = "Get cart", description = "Retrieve the cart for the current customer or guest")
+    @ApiResponse(responseCode = "200", description = "Cart retrieved successfully")
+    @GetMapping
+    public ResponseEntity<CartDTO> getCart(
+            @Parameter(description = "Session ID for guest customers") @RequestParam(required = false) String sessionId) {
         String email = getCurrentUserEmail();
-        log.info("GET /api/cart/items - email='{}', sessionId='{}'", email, sessionId);
-        ValueWrapper<List<CartItemDTO>> items = cartService.getCartItemsForCurrentCustomer(email, sessionId);
-        log.debug("Cart contains {} items", items.getValue().size());
-        return ResponseEntity.ok(items.getValue());
+        log.info("GET /api/cart - email='{}', sessionId='{}'", email, sessionId);
+        validateSessionOrEmail(email, sessionId);
+        CartDTO cart = cartService.getActiveCart(email, sessionId);
+        return ResponseEntity.ok(cart);
     }
 
     @Operation(summary = "Add item to cart", description = "Add a new item to the cart of the logged-in user or guest")
