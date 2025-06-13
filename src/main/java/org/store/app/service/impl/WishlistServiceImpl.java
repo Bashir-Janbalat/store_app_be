@@ -24,6 +24,7 @@ import org.store.app.service.WishlistService;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.store.app.util.RequestUtils.validateSessionOrEmail;
@@ -39,7 +40,7 @@ public class WishlistServiceImpl implements WishlistService {
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "wishlistItems", key = "#email != null ? #email : #sessionId", unless = "#result == null || #result.value.isEmpty()")
+    @Cacheable(value = "wishlistItems", key = "#email != null ? 'email:' + #email : 'session:' + #sessionId")
     public ValueWrapper<List<WishlistItemDTO>> getWishlistItemsForCurrentCustomer(String email, String sessionId) {
         String cacheKey = email != null ? email : sessionId;
         Wishlist wishlist = findActiveWishlistOrNull(email, sessionId);
@@ -63,12 +64,14 @@ public class WishlistServiceImpl implements WishlistService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     @Caching(evict = {
-            @CacheEvict(value = "wishlistItems", key = "#email != null ? #email : #sessionId")
+            @CacheEvict(value = "wishlistItems", key = "#email != null ? 'email:' + #email : 'session:' + #sessionId")
     })
     public void addToWishlist(String email, String sessionId, Long productId) {
-        logCacheEvict(email, sessionId);
+        if (productId == null) {
+            throw new IllegalArgumentException("Product ID must not be null");
+        }
         validateSessionOrEmail(email, sessionId);
 
         Wishlist wishlist = findActiveWishlistOrNull(email, sessionId);
@@ -91,13 +94,17 @@ public class WishlistServiceImpl implements WishlistService {
             item.setWishlist(wishlist);
             item.setProductId(productId);
             wishlistItemRepository.save(item);
+            log.info("Added product id {} to wishlist (key: {})", productId, email != null ? "email:" + email : "session:" + sessionId);
+        } else {
+            log.info("Product with id {} already exists in wishlist", productId);
         }
+        logCacheEvict(email, sessionId);
     }
 
     @Override
     @Transactional
     @Caching(evict = {
-            @CacheEvict(value = "wishlistItems", key = "#email != null ? #email : #sessionId")
+            @CacheEvict(value = "wishlistItems", key = "#email != null ? 'email:' + #email : 'session:' + #sessionId")
     })
     public void removeFromWishlist(String email, String sessionId, Long productId) {
         logCacheEvict(email, sessionId);
@@ -105,12 +112,14 @@ public class WishlistServiceImpl implements WishlistService {
         WishlistItem item = wishlistItemRepository.findByWishlistIdAndProductId(wishlist.getId(), productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Wishlist item not found"));
         wishlistItemRepository.delete(item);
+        log.info("Removed product id {} from wishlist (key: {})", productId, email != null ? "email:" + email : "session:" + sessionId);
+        logCacheEvict(email, sessionId);
     }
 
     @Override
     @Transactional
     @Caching(evict = {
-            @CacheEvict(value = "wishlistItems", key = "#email != null ? #email : #sessionId")
+            @CacheEvict(value = "wishlistItems", key = "#email != null ? 'email:' + #email : 'session:' + #sessionId")
     })
     public void clearWishlist(String email, String sessionId) {
         logCacheEvict(email, sessionId);
@@ -119,18 +128,19 @@ public class WishlistServiceImpl implements WishlistService {
             return;
         }
         wishlistItemRepository.deleteAllByWishlistId(wishlist.getId());
+        log.info("Clearing wishlist for '{}'", email != null ? email : sessionId);
+        logCacheEvict(email, sessionId);
     }
 
     @Override
     @Transactional
     @Caching(evict = {
-            @CacheEvict(value = "wishlistItems", key = "#email"),
-            @CacheEvict(value = "wishlistItems", key = "#sessionId")
+            @CacheEvict(value = "wishlistItems", key = "'email:' + #email"),
+            @CacheEvict(value = "wishlistItems", key = "'session:' + #sessionId")
     })
     public void mergeWishlistOnLogin(String email, String sessionId) {
-        log.info("Cache 'wishlistItems' evicted for keys: '{}' and '{}'", email, sessionId);
         Customer customer = customerRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found with email: " + email));
 
         Optional<Wishlist> userWishlistOpt = wishlistRepository.findByCustomerAndStatus(customer, WishlistStatus.ACTIVE);
         Optional<Wishlist> sessionWishlistOpt = wishlistRepository.findBySessionIdAndStatus(sessionId, WishlistStatus.ACTIVE);
@@ -147,9 +157,9 @@ public class WishlistServiceImpl implements WishlistService {
             Wishlist userWishlist = userWishlistOpt.get();
 
             List<WishlistItem> sessionItems = wishlistItemRepository.findByWishlist(sessionWishlist);
-            List<Long> existingProductIds = wishlistItemRepository.findByWishlist(userWishlist).stream()
+            Set<Long> existingProductIds = wishlistItemRepository.findByWishlist(userWishlist).stream()
                     .map(WishlistItem::getProductId)
-                    .toList();
+                    .collect(Collectors.toSet());
 
             for (WishlistItem item : sessionItems) {
                 if (!existingProductIds.contains(item.getProductId())) {
@@ -165,21 +175,19 @@ public class WishlistServiceImpl implements WishlistService {
                 wishlistRepository.delete(sessionWishlist);
             }
         }
+        log.info("Merged wishlist for '{}' and '{}'", email, sessionId);
+        log.info("Cache 'wishlistItems' evicted for keys: '{}' and '{}'", email, sessionId);
     }
 
     private Wishlist findActiveWishlistOrNull(String email, String sessionId) {
-        if (email != null && !email.isBlank()) {
-            Optional<Customer> customerOpt = customerRepository.findByEmail(email);
-            if (customerOpt.isPresent()) {
-                Optional<Wishlist> cartOpt = wishlistRepository.findByCustomerAndStatus(customerOpt.get(), WishlistStatus.ACTIVE);
-                if (cartOpt.isPresent()) return cartOpt.get();
-            }
-
-        }
-        if (sessionId != null && !sessionId.isBlank()) {
-            return wishlistRepository.findBySessionIdAndStatus(sessionId, WishlistStatus.ACTIVE).orElse(null);
-        }
-        return null;
+        return customerRepository.findByEmail(email)
+                .flatMap(customerEntity -> wishlistRepository.findByCustomerAndStatus(customerEntity, WishlistStatus.ACTIVE))
+                .orElseGet(() -> {
+                    if (sessionId != null && !sessionId.isBlank()) {
+                        return wishlistRepository.findBySessionIdAndStatus(sessionId, WishlistStatus.ACTIVE).orElse(null);
+                    }
+                    return null;
+                });
     }
 
     private Wishlist findActiveWishlist(String email, String sessionId) {
@@ -191,7 +199,7 @@ public class WishlistServiceImpl implements WishlistService {
     }
 
     private void logCacheEvict(String email, String sessionId) {
-        String key = email != null ? email : sessionId;
+        String key = email != null ? "email:" + email : "session:" + sessionId;
         log.info("Cache 'wishlistItems' evicted for key: '{}'", key);
     }
 }
