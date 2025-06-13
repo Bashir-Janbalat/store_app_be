@@ -1,5 +1,8 @@
 package org.store.app.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -14,37 +17,47 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/addresses")
 @RequiredArgsConstructor
+@Tag(name = "Customer Address API", description = "Manage customer addresses")
 public class CustomerAddressController {
 
     private final CustomerAddressService addressService;
 
+    @Operation(summary = "Get all addresses for the current customer")
     @GetMapping
-    public ResponseEntity<List<CustomerAddressDTO>> getAllAddressesForCurrentCustomer(@AuthenticationPrincipal CustomUserDetails userDetails) {
+    public ResponseEntity<List<CustomerAddressDTO>> getAllAddressesForCurrentCustomer(
+            @Parameter(hidden = true) @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long customerId = userDetails.getId();
         List<CustomerAddressDTO> address = addressService.getAllAddressesForCurrentCustomer(customerId);
         return ResponseEntity.ok(address);
     }
 
-
+    @Operation(summary = "Create a new address for the current customer")
     @PostMapping
-    public ResponseEntity<CustomerAddressDTO> createAddress(@Valid @RequestBody CustomerAddressDTO addressDTO,
-                                                            @AuthenticationPrincipal CustomUserDetails userDetails) {
+    public ResponseEntity<CustomerAddressDTO> createAddress(
+            @Parameter(description = "New address data") @Valid @RequestBody CustomerAddressDTO addressDTO,
+            @Parameter(hidden = true) @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long customerId = userDetails.getId();
         CustomerAddressDTO created = addressService.createAddress(addressDTO, customerId);
         return ResponseEntity.ok(created);
     }
 
+    @Operation(summary = "Update an existing address for the current customer")
     @PutMapping("/{addressId}")
-    public ResponseEntity<CustomerAddressDTO> updateAddress(@PathVariable Long addressId, @RequestBody CustomerAddressDTO addressDTO,
-                                                            @AuthenticationPrincipal CustomUserDetails userDetails) {
+    public ResponseEntity<CustomerAddressDTO> updateAddress(
+            @Parameter(description = "ID of the address to update") @PathVariable Long addressId,
+            @Parameter(description = "Updated address data") @RequestBody CustomerAddressDTO addressDTO,
+            @Parameter(hidden = true) @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long customerId = userDetails.getId();
         addressDTO.setId(addressId);
         CustomerAddressDTO updated = addressService.updateAddress(addressId, addressDTO, customerId);
         return ResponseEntity.ok(updated);
     }
 
+    @Operation(summary = "Soft delete an address for the current customer")
     @DeleteMapping("/{addressId}")
-    public ResponseEntity<Void> deleteAddress(@PathVariable Long addressId, @AuthenticationPrincipal CustomUserDetails userDetails) {
+    public ResponseEntity<Void> deleteAddress(
+            @Parameter(description = "ID of the address to delete") @PathVariable Long addressId,
+            @Parameter(hidden = true) @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long customerId = userDetails.getId();
         addressService.softDeleteAddress(addressId, customerId);
         return ResponseEntity.noContent().build();

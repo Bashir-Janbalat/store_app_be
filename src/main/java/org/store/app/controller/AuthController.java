@@ -69,7 +69,6 @@ public class AuthController {
                 .build();
 
         if (sessionId != null) {
-            log.info("Merging cart and wishlist for session ID: {} and user: {}", sessionId, loginDto.getEmail());
             cartService.mergeCartOnLogin(loginDto.getEmail(), sessionId);
             wishlistService.mergeWishlistOnLogin(loginDto.getEmail(), sessionId);
         }

@@ -32,7 +32,6 @@ public class CartController {
     public ResponseEntity<CartDTO> getCart(
             @Parameter(description = "Session ID for guest customers") @RequestParam(required = false) String sessionId) {
         String email = getCurrentUserEmail();
-        log.info("GET /api/cart - email='{}', sessionId='{}'", email, sessionId);
         validateSessionOrEmail(email, sessionId);
         CartDTO cart = cartService.getActiveCart(email, sessionId);
         return ResponseEntity.ok(cart);
@@ -45,8 +44,6 @@ public class CartController {
             @Parameter(description = "Session ID for guest users") @RequestParam(required = false) String sessionId,
             @RequestBody @Valid AddToCartRequest request) {
         String email = getCurrentUserEmail();
-        log.info("POST /api/cart/add called with email='{}', sessionId='{}', productId={}, unitPrice={}, quantity={}",
-                email, sessionId, request.getProductId(), request.getUnitPrice(), request.getQuantity());
         validateSessionOrEmail(email, sessionId);
         cartService.addToCart(email, sessionId, request.getProductId(), request.getUnitPrice(), request.getQuantity());
         return ResponseEntity.ok().build();
@@ -59,8 +56,6 @@ public class CartController {
             @Parameter(description = "Session ID for guest users") @RequestParam(required = false) String sessionId,
             @RequestBody @Valid UpdateCartRequest request) {
         String email = getCurrentUserEmail();
-        log.info("PUT /api/cart/update-quantity called with email='{}', sessionId='{}', productId={}, quantity={}",
-                email, sessionId, request.getProductId(), request.getQuantity());
         validateSessionOrEmail(email, sessionId);
 
         cartService.updateCartItemQuantity(email, sessionId, request.getProductId(), request.getQuantity());
@@ -74,7 +69,6 @@ public class CartController {
             @Parameter(description = "Session ID for guest users") @RequestParam(required = false) String sessionId,
             @Parameter(description = "ID of the product to remove from cart", required = true, example = "101") @RequestParam Long productId) {
         String email = getCurrentUserEmail();
-        log.info("DELETE /api/cart/remove called with email='{}', sessionId='{}', productId={}", email, sessionId, productId);
         validateSessionOrEmail(email, sessionId);
         cartService.removeFromCart(email, sessionId, productId);
         return ResponseEntity.ok().build();
@@ -87,7 +81,6 @@ public class CartController {
             @Parameter(description = "Session ID for guest users") @RequestParam(required = false) String sessionId) {
 
         String email = getCurrentUserEmail();
-        log.info("DELETE /api/cart/clear called with email='{}', sessionId='{}'", email, sessionId);
         validateSessionOrEmail(email, sessionId);
         cartService.clearCart(email, sessionId);
         return ResponseEntity.ok().build();

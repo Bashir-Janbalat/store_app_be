@@ -35,9 +35,7 @@ public class WishlistController {
     public ResponseEntity<List<WishlistItemDTO>> getWishlistItems(
             @Parameter(description = "Session ID for guest users") @RequestParam(required = false) String sessionId) {
         String email = getCurrentUserEmail();
-        log.info("GET /api/wishlist/items - email='{}', sessionId='{}'", email, sessionId);
         ValueWrapper<List<WishlistItemDTO>> items = wishlistService.getWishlistItemsForCurrentCustomer(email, sessionId);
-        log.debug("Wishlist contains {} items", items.getValue().size());
         return ResponseEntity.ok(items.getValue());
     }
 
@@ -48,7 +46,6 @@ public class WishlistController {
             @Parameter(description = "Session ID for guest users") @RequestParam(required = false) String sessionId,
             @Valid @RequestBody AddToWishlistRequest request) {
         String email = getCurrentUserEmail();
-        log.info("POST /api/wishlist/add - email='{}', sessionId='{}', productId={}", email, sessionId, request.getProductId());
         validateSessionOrEmail(email, sessionId);
         wishlistService.addToWishlist(email, sessionId, request.getProductId());
         return ResponseEntity.ok().build();
@@ -61,7 +58,6 @@ public class WishlistController {
             @Parameter(description = "Session ID for guest users") @RequestParam(required = false) String sessionId,
             @Parameter(description = "ID of the product to remove from wishlist", required = true, example = "101") @RequestParam Long productId) {
         String email = getCurrentUserEmail();
-        log.info("DELETE /api/wishlist/remove - email='{}', sessionId='{}', productId={}", email, sessionId, productId);
         validateSessionOrEmail(email, sessionId);
         wishlistService.removeFromWishlist(email, sessionId, productId);
         return ResponseEntity.ok().build();
@@ -73,7 +69,6 @@ public class WishlistController {
     public ResponseEntity<Void> clearWishlist(
             @Parameter(description = "Session ID for guest users") @RequestParam(required = false) String sessionId) {
         String email = getCurrentUserEmail();
-        log.info("DELETE /api/wishlist/clear - email='{}', sessionId='{}'", email, sessionId);
         validateSessionOrEmail(email, sessionId);
         wishlistService.clearWishlist(email, sessionId);
         return ResponseEntity.ok().build();
