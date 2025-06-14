@@ -152,7 +152,7 @@ public class CartServiceImpl implements CartService {
         }
 
         int count = cart.getItems().size();
-        cartItemRepository.deleteAllByCartId(cart.getId());
+        cart.getItems().clear();
         log.info("Cleared {} item(s) from cart for '{}'", count, identifier);
         log.info("Cache entries evicted: 'cart' and 'cartById'");
     }
