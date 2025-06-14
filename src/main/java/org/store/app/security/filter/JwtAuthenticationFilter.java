@@ -8,8 +8,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.store.app.exception.ErrorResponse;
-import org.store.app.security.jwt.JwtTokenProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -21,6 +19,8 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.store.app.exception.ErrorResponse;
+import org.store.app.security.jwt.JwtTokenProvider;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -41,6 +41,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         try {
+            if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+                logger.debug("Skipping JWT filter for OPTIONS request to {}", request.getRequestURI());
+                filterChain.doFilter(request, response);
+                return;
+            }
             String token = jwtTokenProvider.getTokenFromRequest(request);
 
             if (StringUtils.hasText(token) && jwtTokenProvider.validateToken(token)) {

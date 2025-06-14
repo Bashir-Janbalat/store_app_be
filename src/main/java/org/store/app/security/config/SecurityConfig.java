@@ -17,7 +17,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfFilter;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.stereotype.Component;
+import org.store.app.security.filter.CsrfTokenResponseHeaderBindingFilter;
 import org.store.app.security.filter.JwtAuthenticationFilter;
 
 @Component
@@ -29,6 +32,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationEntryPoint authenticationEntryPoint;
     private final JwtAuthenticationFilter authenticationFilter;
+    private final CsrfTokenResponseHeaderBindingFilter csrfTokenResponseHeaderBindingFilter;
     private final Environment environment;
 
     @Value("${security.disabled:false}")
@@ -48,8 +52,9 @@ public class SecurityConfig {
         } else {
             http.cors(Customizer.withDefaults())
                     .csrf(csrf -> csrf
-                            .ignoringRequestMatchers("/api/auth/**", "/api/cart/**", "/api/wishlist/**")
+                            .ignoringRequestMatchers("/api/auth/**")
                             .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                            .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
                     ).authorizeHttpRequests((authorize) -> {
                         authorize.requestMatchers("/api/auth/**").permitAll();
                         authorize.requestMatchers("/api/cart/**").permitAll();
@@ -60,6 +65,7 @@ public class SecurityConfig {
                     });
 
             http.addFilterBefore(authenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            http.addFilterAfter(csrfTokenResponseHeaderBindingFilter, CsrfFilter.class);
         }
 
         http.exceptionHandling(exception -> exception
