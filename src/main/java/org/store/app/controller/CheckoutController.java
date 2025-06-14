@@ -11,7 +11,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.store.app.enums.CartStatus;
 import org.store.app.enums.OrderStatus;
+import org.store.app.model.Order;
+import org.store.app.service.CartService;
 import org.store.app.service.CheckoutService;
 import org.store.app.service.OrderService;
 
@@ -23,6 +26,7 @@ public class CheckoutController {
 
     private final CheckoutService checkoutService;
     private final OrderService orderService;
+    private final CartService cartService;
 
     public static final String CURRENCY = "USD";
 
@@ -30,9 +34,9 @@ public class CheckoutController {
     private String webhookSecret;
 
     @PostMapping("/create-session")
-    public ResponseEntity<?> createCheckoutSession(@RequestParam Long orderId, @RequestParam Long amount) {
+    public ResponseEntity<?> createCheckoutSession(@RequestParam Long orderId) {
         try {
-            Session session = checkoutService.createCheckoutSession(orderId, amount, CURRENCY);
+            Session session = checkoutService.createCheckoutSession(orderId, CURRENCY);
             return ResponseEntity.ok(session.getUrl());
         } catch (StripeException e) {
             return ResponseEntity.status(500).body("Error creating Stripe checkout session");
@@ -50,8 +54,9 @@ public class CheckoutController {
                     Session session = (Session) event.getDataObjectDeserializer().getObject().orElse(null);
                     if (session != null) {
                         Long orderId = Long.valueOf(session.getClientReferenceId());
-                        orderService.updateOrderStatus(orderId, OrderStatus.PROCESSING);
+                        Order order = orderService.updateOrderStatus(orderId, OrderStatus.PROCESSING);
                         orderService.sendOrderConfirmationEmail(orderId, CURRENCY);
+                        cartService.updateCartStatus(order.getCart().getId(), CartStatus.CONVERTED);
                         log.info("Order {} marked as PROCESSING", orderId);
                     }
                 }

@@ -8,17 +8,13 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.store.app.dto.OrderDTO;
-import org.store.app.dto.OrderItemDTO;
-import org.store.app.dto.OrderResponseCreatedDTO;
-import org.store.app.dto.ProductInfoDTO;
+import org.store.app.common.ValueWrapper;
+import org.store.app.dto.*;
 import org.store.app.enums.AddressType;
-import org.store.app.enums.CartStatus;
 import org.store.app.enums.OrderStatus;
 import org.store.app.exception.ResourceNotFoundException;
 import org.store.app.mapper.OrderItemMapper;
 import org.store.app.mapper.OrderMapper;
-import org.store.app.model.Cart;
 import org.store.app.model.Customer;
 import org.store.app.model.Order;
 import org.store.app.model.OrderItem;
@@ -55,7 +51,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     @Cacheable(value = "orders", key = "#customerId + '-' + #status")
-    public List<OrderDTO> getOrdersByCustomerAndStatus(Long customerId, OrderStatus status) {
+    public ValueWrapper<List<OrderDTO>> getOrdersByCustomerAndStatus(Long customerId, OrderStatus status) {
         List<Order> orders = orderRepository.findByCustomerIdAndStatus(customerId, status);
 
         List<OrderDTO> ordersDTOS = orders.stream().map(orderMapper::toDto).toList();
@@ -83,7 +79,7 @@ public class OrderServiceImpl implements OrderService {
             }
         }
         log.info("Found {} orders for customer id: {}", ordersDTOS.size(), customerId);
-        return ordersDTOS;
+        return new ValueWrapper<>(ordersDTOS);
     }
 
     @Override
@@ -101,7 +97,7 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found with id: " + customerId));
 
         if (orderDTO.getShippingAddressId() == null) {
-            Long defaultShippingId = customerAddressService.getDefaultAddressId(customerId, AddressType.SHIPPING);
+            Long defaultShippingId = customerAddressService.getDefaultAddressId(customerId, AddressType.SHIPPING).getValue();
             log.info("Using default shipping address with ID: {}", defaultShippingId);
             orderDTO.setShippingAddressId(defaultShippingId);
         } else {
@@ -110,23 +106,25 @@ public class OrderServiceImpl implements OrderService {
         }
 
         if (orderDTO.getBillingAddressId() == null) {
-            Long defaultBillingId = customerAddressService.getDefaultAddressId(customerId, AddressType.BILLING);
+            Long defaultBillingId = customerAddressService.getDefaultAddressId(customerId, AddressType.BILLING).getValue();
             log.info("Using default billing address with ID: {}", defaultBillingId);
             orderDTO.setBillingAddressId(defaultBillingId);
         } else {
             log.info("Verifying provided billing address ID: {}", orderDTO.getBillingAddressId());
             customerAddressService.verifyAddressOwnership(orderDTO.getBillingAddressId(), customerId);
         }
-
+        log.info("Fetching cart with ID: {}", orderDTO.getCartId());
+        CartDTO cart = cartService.getActiveCart(customer.getEmail(), null);
+        if (cart != null && (cart.getItemDTOS() == null || cart.getItemDTOS().isEmpty())) {
+            throw new ResourceNotFoundException("Cart is empty");
+        }
         Order order = orderMapper.toEntity(orderDTO);
         order.setCustomer(customer);
 
-        log.info("Fetching cart with ID: {}", orderDTO.getCartId());
-        Cart cart = cartService.getCartById(orderDTO.getCartId(), CartStatus.ACTIVE, customer.getId());
 
-        List<OrderItem> orderItems = cart.getItems().stream()
-                .map(cartItem -> {
-                    OrderItem item = orderItemMapper.toEntityFromCartItem(cartItem);
+        List<OrderItem> orderItems = cart.getItemDTOS().stream()
+                .map(cartItemDTO -> {
+                    OrderItem item = orderItemMapper.toEntityFromCartItemDTO(cartItemDTO);
                     item.setOrder(order);
                     return item;
                 }).toList();
@@ -146,7 +144,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public void updateOrderStatus(Long orderId, OrderStatus newStatus) {
+    public Order updateOrderStatus(Long orderId, OrderStatus newStatus) {
         log.info("Updating order status. Order ID: {}, New Status: {}", orderId, newStatus);
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
 
@@ -154,17 +152,21 @@ public class OrderServiceImpl implements OrderService {
         OrderStatus oldStatus = order.getStatus();
 
         order.setStatus(newStatus);
-        orderRepository.save(order);
+        Order updated = orderRepository.save(order);
         log.info("Order status updated successfully. Order ID: {}, Status: {}", orderId, newStatus);
 
         String oldKey = customerId + "-" + oldStatus;
         String newKey = customerId + "-" + newStatus;
-        
+
         var cache = cacheManager.getCache("orders");
         if (cache != null) {
             cache.evict(oldKey);
             cache.evict(newKey);
+            log.info("Cache evicted for keys: '{}' and '{}'", oldKey, newKey);
+        } else {
+            log.warn("Cache 'orders' not found. Skipped eviction for keys: '{}' and '{}'", oldKey, newKey);
         }
+        return updated;
     }
 
     @Override

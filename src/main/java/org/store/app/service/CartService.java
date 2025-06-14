@@ -19,5 +19,5 @@ public interface CartService {
 
     void mergeCartOnLogin(String email, String sessionId);
 
-    Cart getCartById(Long cartId, CartStatus status, Long customerId);
+    void updateCartStatus(Long cartId, CartStatus newStatus);
 }

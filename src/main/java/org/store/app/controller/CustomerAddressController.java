@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.store.app.common.ValueWrapper;
 import org.store.app.dto.CustomerAddressDTO;
 import org.store.app.security.userdetails.CustomUserDetails;
 import org.store.app.service.CustomerAddressService;
@@ -27,8 +28,8 @@ public class CustomerAddressController {
     public ResponseEntity<List<CustomerAddressDTO>> getAllAddressesForCurrentCustomer(
             @Parameter(hidden = true) @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long customerId = userDetails.getId();
-        List<CustomerAddressDTO> address = addressService.getAllAddressesForCurrentCustomer(customerId);
-        return ResponseEntity.ok(address);
+        ValueWrapper<List<CustomerAddressDTO>> address = addressService.getAllAddressesForCurrentCustomer(customerId);
+        return ResponseEntity.ok(address.getValue());
     }
 
     @Operation(summary = "Create a new address for the current customer")

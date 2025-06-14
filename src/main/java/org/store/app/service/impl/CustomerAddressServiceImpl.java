@@ -7,6 +7,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.store.app.common.ValueWrapper;
 import org.store.app.dto.CustomerAddressDTO;
 import org.store.app.enums.AddressType;
 import org.store.app.exception.ResourceNotFoundException;
@@ -31,13 +32,13 @@ public class CustomerAddressServiceImpl implements CustomerAddressService {
     @Override
     @Transactional(readOnly = true)
     @Cacheable(value = "customerAddresses", key = "#customerId")
-    public List<CustomerAddressDTO> getAllAddressesForCurrentCustomer(Long customerId) {
+    public ValueWrapper<List<CustomerAddressDTO>> getAllAddressesForCurrentCustomer(Long customerId) {
         log.info("Fetching all non-deleted addresses for customer id: {}", customerId);
         List<CustomerAddress> addresses = addressRepository.findByCustomerIdAndDeletedFalse(customerId);
 
         List<CustomerAddressDTO> result = addresses.stream().map(addressMapper::toDto).toList();
         log.info("Found {} addresses for customer id: {}", result.size(), customerId);
-        return result;
+        return new ValueWrapper<>(result);
     }
 
     @Override
@@ -126,9 +127,10 @@ public class CustomerAddressServiceImpl implements CustomerAddressService {
     }
 
     @Override
-    public Long getDefaultAddressId(Long customerId, AddressType addressType) {
-        return addressRepository.findDefaultAddressIdByCustomerIdAndType(customerId, addressType)
+    public ValueWrapper<Long> getDefaultAddressId(Long customerId, AddressType addressType) {
+        Long id = addressRepository.findDefaultAddressIdByCustomerIdAndType(customerId, addressType)
                 .orElseThrow(() -> new ResourceNotFoundException("Default " + addressType.name().toLowerCase() + " address not found for customer with id: " + customerId));
+        return new ValueWrapper<>(id);
     }
 
     private CustomerAddress getAddressIfOwnedByCustomer(Long addressId, Long customerId) {

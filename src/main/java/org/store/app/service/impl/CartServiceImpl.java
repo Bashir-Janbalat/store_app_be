@@ -218,11 +218,18 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
-    @Cacheable(value = "cartById", key = "#cartId + '-' + #status + '-' + #customerId")
-    public Cart getCartById(Long cartId, CartStatus status, Long customerId) {
-        log.info("Loading cart from database for cartId={}, status={}, customerId={}", cartId, status, customerId);
-        return cartRepository.findByIdAndStatusAndCustomerId(cartId, status, customerId)
+    @Caching(evict = {
+            @CacheEvict(value = "cart", allEntries = true),
+            @CacheEvict(value = "cartById", allEntries = true)
+    })
+    public void updateCartStatus(Long cartId, CartStatus newStatus) {
+        Cart cart = cartRepository.findById(cartId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cart not found with id: " + cartId));
+
+        cart.setStatus(newStatus);
+        cartRepository.save(cart);
+        log.info("Updated cart status to {} for cartId={}", newStatus, cartId);
+        log.info("Cache entries evicted: 'cart' and 'cartById'");
     }
 
 

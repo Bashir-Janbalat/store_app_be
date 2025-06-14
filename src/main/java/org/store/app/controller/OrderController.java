@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.store.app.common.ValueWrapper;
 import org.store.app.dto.OrderDTO;
 import org.store.app.dto.OrderResponseCreatedDTO;
 import org.store.app.enums.OrderStatus;
@@ -40,7 +41,7 @@ public class OrderController {
     @Operation(summary = "Get all orders for the current customer filtered by status")
     @GetMapping
     public ResponseEntity<List<OrderDTO>> getAllOrdersForCurrentCustomer(@Parameter(hidden = true) @AuthenticationPrincipal CustomUserDetails userDetails, @Parameter(description = "Filter orders by status") @RequestParam(defaultValue = "PROCESSING") OrderStatus status) {
-        List<OrderDTO> orderDTOS = orderService.getOrdersByCustomerAndStatus(userDetails.getId(), status);
-        return ResponseEntity.ok(orderDTOS);
+        ValueWrapper<List<OrderDTO>> orderDTOS = orderService.getOrdersByCustomerAndStatus(userDetails.getId(), status);
+        return ResponseEntity.ok(orderDTOS.getValue());
     }
 }

@@ -5,5 +5,5 @@ import com.stripe.model.checkout.Session;
 
 public interface CheckoutService {
 
-    Session createCheckoutSession(Long orderId, Long amount, String currency) throws StripeException;
+    Session createCheckoutSession(Long orderId, String currency) throws StripeException;
 }
