@@ -92,7 +92,7 @@ public class CartController {
             @Parameter(name = "sessionId", in = ParameterIn.COOKIE, description = "Session ID cookie for guest customers")
     })
     @DeleteMapping("/clear")
-    public ResponseEntity<Void> clearCart(HttpServletRequest servletRequest) {
+    public ResponseEntity<Void> clearCart(@Parameter(hidden = true) HttpServletRequest servletRequest) {
         String sessionId = resolveSessionId(servletRequest);
         String email = getCurrentUserEmail();
         validateSessionOrEmail(email, sessionId);

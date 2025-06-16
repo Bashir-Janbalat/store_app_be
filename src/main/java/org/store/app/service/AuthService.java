@@ -7,4 +7,7 @@ public interface AuthService {
     String login(LoginDTO loginDto);
     void signup(CustomerDTO customerDto);
 
+    String generateRefreshToken(String username);
+
+    String generateToken(String username);
 }

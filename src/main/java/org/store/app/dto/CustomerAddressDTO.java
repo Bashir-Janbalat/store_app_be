@@ -35,7 +35,6 @@ public class CustomerAddressDTO extends BaseDTO implements Serializable {
     @Builder.Default
     private AddressType addressType = AddressType.SHIPPING;
     @Builder.Default
-    @NotNull(message = "Default address flag must not be null")
     private Boolean defaultAddress = false;
 
 }

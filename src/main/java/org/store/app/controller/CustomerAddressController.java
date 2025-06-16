@@ -46,7 +46,7 @@ public class CustomerAddressController {
     @PutMapping("/{addressId}")
     public ResponseEntity<CustomerAddressDTO> updateAddress(
             @Parameter(description = "ID of the address to update") @PathVariable Long addressId,
-            @Parameter(description = "Updated address data") @RequestBody CustomerAddressDTO addressDTO,
+            @Parameter(description = "Updated address data")@Valid @RequestBody CustomerAddressDTO addressDTO,
             @Parameter(hidden = true) @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long customerId = userDetails.getId();
         addressDTO.setId(addressId);

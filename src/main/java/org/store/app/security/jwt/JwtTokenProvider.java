@@ -8,8 +8,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
+import org.store.app.security.config.CookieProperties;
 import org.store.app.security.userdetails.CustomUserDetails;
 
 import javax.crypto.SecretKey;
@@ -26,6 +30,12 @@ public class JwtTokenProvider {
     @Value("${jwt.expiration.time}")
     private long jwtExpirationTime;
 
+    @Value("${jwt.refresh.secret.key}")
+    private String jwtRefreshSecret;
+
+    @Value("${jwt.refresh.expiration.time}")
+    private long jwtRefreshExpirationTime;
+
 
     @Value("${jwt.reset.expiration.time}")
     private long jwtResetExpirationTime;
@@ -34,6 +44,10 @@ public class JwtTokenProvider {
     private String jwtResetSecret;
 
     private final RedisTemplate<String, String> redisTemplate;
+
+    private final UserDetailsService userDetailsService;
+
+    private final CookieProperties cookieProperties;
 
 
     public String generateToken(Authentication authentication) {
@@ -57,12 +71,21 @@ public class JwtTokenProvider {
                 .compact();
     }
 
+    public String generateToken(String username) {
+
+        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                userDetails, null, userDetails.getAuthorities());
+
+        return generateToken(authentication);
+    }
+
     private Key key() {
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret));
     }
 
     public String getUsername(String token) {
-
         return Jwts.parser().verifyWith((SecretKey) key()).build().parseSignedClaims(token).getPayload().getSubject();
     }
 
@@ -79,7 +102,7 @@ public class JwtTokenProvider {
     public String getTokenFromRequest(HttpServletRequest request) {
         if (request.getCookies() != null) {
             for (Cookie cookie : request.getCookies()) {
-                if ("access_token".equals(cookie.getName())) {
+                if (cookieProperties.getAccessTokenName().equals(cookie.getName())) {
                     return cookie.getValue();
                 }
             }
@@ -117,5 +140,43 @@ public class JwtTokenProvider {
         } catch (Exception e) {
             return false;
         }
+    }
+// ---------  Refresh Token ---------
+
+    public String generateRefreshToken(String username) {
+
+        Date now = new Date();
+        Date expiry = new Date(now.getTime() + jwtRefreshExpirationTime);
+
+        return Jwts.builder()
+                .subject(username)
+                .issuedAt(now)
+                .expiration(expiry)
+                .signWith(getRefreshKey())
+                .compact();
+    }
+
+    public boolean validateRefreshToken(String token) {
+        try {
+            Jwts.parser()
+                    .verifyWith(Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtRefreshSecret)))
+                    .build().parse(token);
+            return !isTokenBlacklisted(token);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public String getUsernameFromRefreshToken(String token) {
+        return Jwts.parser().verifyWith((SecretKey) getRefreshKey()).build().parseSignedClaims(token).getPayload().getSubject();
+    }
+
+    private Key getRefreshKey() {
+        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtRefreshSecret));
+    }
+
+    public long getExpirationFromRefreshToken(String token) {
+        return Jwts.parser().verifyWith((SecretKey) getRefreshKey()).build().parseSignedClaims(token).getPayload().getExpiration().getTime();
+
     }
 }

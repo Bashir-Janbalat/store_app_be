@@ -5,12 +5,12 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +18,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.store.app.dto.*;
+import org.store.app.security.config.CookieProperties;
 import org.store.app.security.jwt.JwtTokenProvider;
 import org.store.app.security.userdetails.CustomUserDetails;
 import org.store.app.service.*;
@@ -38,11 +39,14 @@ public class AuthController {
     private final CartService cartService;
     private final WishlistService wishlistService;
 
-    @Value("${app.cookie.secure}")
-    private boolean secure;
+    private final CookieProperties cookieProperties;
 
-    @Value("${app.cookie.same-site}")
-    private String sameSite;
+    @Value("${jwt.expiration.time}")
+    private long jwtExpirationTime;
+
+    private Long getMaxAgeAccessToken() {
+        return jwtExpirationTime / 1000;
+    }
 
     @PostMapping("/login")
     @Operation(
@@ -60,22 +64,38 @@ public class AuthController {
             @RequestBody LoginDTO loginDto) {
         String token = authService.login(loginDto);
 
-        ResponseCookie cookie = ResponseCookie.from("access_token", token)
-                .httpOnly(true)
-                .secure(secure) // اجعلها false فقط للتطوير على localhost بدون HTTPS
-                .path("/")
-                .maxAge(15 * 60) // مدة الصلاحية 15 دقيقة مثلا
-                .sameSite(sameSite) // مهم لو كانت الواجهة والباك في دومينات مختلفة ويجب أن تكون None في Prod
-                .build();
+        ResponseCookie accessTokenCookie = createCookie(cookieProperties.getAccessTokenName(), token, getMaxAgeAccessToken());
+        String username = jwtTokenProvider.getUsername(token);
+        String refreshToken = authService.generateRefreshToken(username);
+        ResponseCookie refreshTokenCookie = createCookie(cookieProperties.getRefreshTokenName(), refreshToken, cookieProperties.getMaxAgeRefreshToken());
+
 
         if (sessionId != null) {
             cartService.mergeCartOnLogin(loginDto.getEmail(), sessionId);
             wishlistService.mergeWishlistOnLogin(loginDto.getEmail(), sessionId);
         }
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("Set-Cookie", accessTokenCookie.toString());
+        headers.add("Set-Cookie", refreshTokenCookie.toString());
+        return ResponseEntity.ok().headers(headers).build();
+    }
+
+    @PostMapping("/refresh-token")
+    @Operation(summary = "Refresh access token using refresh token")
+    public ResponseEntity<?> refreshToken(@CookieValue(name = "refresh_token", required = false) String refreshToken) {
+        if (refreshToken == null || !jwtTokenProvider.validateRefreshToken(refreshToken)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Refresh token is missing or invalid");
+        }
+
+        String username = jwtTokenProvider.getUsernameFromRefreshToken(refreshToken);
+
+        String newAccessToken = authService.generateToken(username);
+
+        ResponseCookie accessTokenCookie = createCookie(cookieProperties.getAccessTokenName(), newAccessToken, getMaxAgeAccessToken());
 
         return ResponseEntity.ok()
-                .header("Set-Cookie", cookie.toString())
-                .build();
+                .header("Set-Cookie", accessTokenCookie.toString())
+                .body("Access token refreshed successfully");
     }
 
     @Operation(
@@ -114,26 +134,17 @@ public class AuthController {
 
     @Operation(summary = "Customer logout", description = "Invalidate the JWT token to log out customer")
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(HttpServletRequest request) {
-        String token = jwtTokenProvider.getTokenFromRequest(request);
-        if (token != null && jwtTokenProvider.validateToken(token)) {
-            long expirationTimeMillis = jwtTokenProvider.getExpirationFromToken(token) - System.currentTimeMillis();
-            log.info("Logging out token, adding to blacklist: {}", token);
-            jwtTokenProvider.addTokenToBlacklist(token, expirationTimeMillis);
-        } else {
-            log.warn("No valid token found for logout");
-        }
+    public ResponseEntity<Void> logout(@CookieValue(name = "access_token", required = false) String accessToken,
+                                       @CookieValue(name = "refresh_token", required = false) String refreshToken) {
+        blacklistTokenIfValid(accessToken, false);
+        blacklistTokenIfValid(refreshToken, true);
 
-        ResponseCookie deleteCookie = ResponseCookie.from("access_token", "")
-                .httpOnly(true)
-                .secure(secure)
-                .path("/")
-                .maxAge(0)
-                .sameSite(sameSite)
-                .build();
+        ResponseCookie deleteAccessTokenCookie = createCookie(cookieProperties.getAccessTokenName(), "", 0);
+        ResponseCookie deleteRefreshTokenCookie = createCookie(cookieProperties.getRefreshTokenName(), "", 0);
 
         return ResponseEntity.ok()
-                .header("Set-Cookie", deleteCookie.toString())
+                .header("Set-Cookie", deleteAccessTokenCookie.toString())
+                .header("Set-Cookie", deleteRefreshTokenCookie.toString())
                 .build();
     }
 
@@ -156,5 +167,33 @@ public class AuthController {
         }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid or expired token.");
     }
+
+    private ResponseCookie createCookie(String name, String value, long maxAge) {
+        return ResponseCookie.from(name, value)
+                .httpOnly(cookieProperties.isHttpOnly())
+                .secure(cookieProperties.isSecure())
+                .path("/")
+                .maxAge(maxAge)
+                .sameSite(cookieProperties.getSameSite())
+                .build();
+    }
+
+    private void blacklistTokenIfValid(String token, boolean isRefreshToken) {
+        if (token != null) {
+            boolean valid = isRefreshToken ? jwtTokenProvider.validateRefreshToken(token) : jwtTokenProvider.validateToken(token);
+            if (valid) {
+                long expirationTimeMillis = isRefreshToken
+                        ? jwtTokenProvider.getExpirationFromRefreshToken(token) - System.currentTimeMillis()
+                        : jwtTokenProvider.getExpirationFromToken(token) - System.currentTimeMillis();
+                log.info("Logging out {} token adding to blacklist: {}", isRefreshToken ? "refresh" : "access", token);
+                jwtTokenProvider.addTokenToBlacklist(token, expirationTimeMillis);
+            } else {
+                log.warn("Invalid {} token received during logout", isRefreshToken ? "refresh" : "access");
+            }
+        } else {
+            log.warn("No {} token provided during logout", isRefreshToken ? "refresh" : "access");
+        }
+    }
+
 }
 

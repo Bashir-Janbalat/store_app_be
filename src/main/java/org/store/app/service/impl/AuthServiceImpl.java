@@ -50,5 +50,25 @@ public class AuthServiceImpl implements AuthService {
         customerService.createCustomer(customerDTO);
         log.info("Customer '{}' successfully signed up", customerDTO.getEmail());
     }
+
+    @Override
+    @Transactional
+    public String generateRefreshToken(String username) {
+        return jwtTokenProvider.generateRefreshToken(username);
+    }
+
+    @Override
+    public String generateToken(String username) {
+        return jwtTokenProvider.generateToken(username);
+    }
+
+    public Authentication getCurrentAuthentication() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated() &&
+            !(authentication.getPrincipal() instanceof String && authentication.getPrincipal().equals("anonymousUser"))) {
+            return authentication;
+        }
+        return null;
+    }
 }
 
