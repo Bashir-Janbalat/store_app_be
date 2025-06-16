@@ -48,14 +48,14 @@ public class CustomerAddressServiceImpl implements CustomerAddressService {
         log.info("Creating new address for customer id: {}", customerId);
         Customer customer = customerRepository.findById(customerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found with id: " + customerId));
-
+        addressDTO.setId(null);
         CustomerAddress address = addressMapper.toEntity(addressDTO);
         address.setCustomer(customer);
 
         if (Boolean.TRUE.equals(address.getDefaultAddress())) {
             addressRepository.clearDefaultForCustomerAndType(customerId, address.getAddressType());
+            addressRepository.flush();
         }
-
         CustomerAddress saved = addressRepository.save(address);
         log.info("Created new address with id: {} for customer id: {}", saved.getId(), customerId);
         return addressMapper.toDto(saved);

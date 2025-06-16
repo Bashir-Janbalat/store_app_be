@@ -15,7 +15,7 @@ import java.util.Optional;
 public interface CustomerAddressRepository extends JpaRepository<CustomerAddress, Long> {
     List<CustomerAddress> findByCustomerIdAndDeletedFalse(Long customerId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE CustomerAddress c SET c.defaultAddress = false " +
            "WHERE c.customer.id = :customerId AND c.addressType = :type AND c.deleted = false")
     void clearDefaultForCustomerAndType(@Param("customerId") Long customerId, @Param("type") AddressType type);
