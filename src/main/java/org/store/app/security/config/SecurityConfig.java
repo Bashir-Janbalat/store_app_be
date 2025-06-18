@@ -52,11 +52,12 @@ public class SecurityConfig {
         } else {
             http.cors(Customizer.withDefaults())
                     .csrf(csrf -> csrf
-                            .ignoringRequestMatchers("/api/auth/**")
+                            .ignoringRequestMatchers("/api/auth/**","/api/checkout/webhook")
                             .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                             .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
                     ).authorizeHttpRequests((authorize) -> {
                         authorize.requestMatchers("/api/auth/**").permitAll();
+                        authorize.requestMatchers("/api/checkout/webhook").permitAll();
                         authorize.requestMatchers("/api/cart/**").permitAll();
                         authorize.requestMatchers("/api/wishlist/**").permitAll();
                         authorize.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
