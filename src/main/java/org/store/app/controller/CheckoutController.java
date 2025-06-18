@@ -5,15 +5,18 @@ import com.stripe.exception.StripeException;
 import com.stripe.model.Event;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.Webhook;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.store.app.enums.CartStatus;
 import org.store.app.enums.OrderStatus;
 import org.store.app.model.Order;
+import org.store.app.security.userdetails.CustomUserDetails;
 import org.store.app.service.CartService;
 import org.store.app.service.CheckoutService;
 import org.store.app.service.OrderService;
@@ -34,12 +37,23 @@ public class CheckoutController {
     private String webhookSecret;
 
     @PostMapping("/create-session")
-    public ResponseEntity<?> createCheckoutSession(@RequestParam Long orderId) {
+    public ResponseEntity<?> createCheckoutSession(@Parameter(hidden = true) @AuthenticationPrincipal CustomUserDetails userDetails,
+                                                   @RequestParam Long orderId) {
+        if (orderId == null) {
+            return ResponseEntity.badRequest().body("Order ID is required");
+        }
         try {
-            Session session = checkoutService.createCheckoutSession(orderId, CURRENCY);
+            Session session = checkoutService.createCheckoutSession(orderId, CURRENCY, userDetails);
             return ResponseEntity.ok(session.getUrl());
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            log.warn("Validation error while creating checkout session: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (StripeException e) {
-            return ResponseEntity.status(500).body("Error creating Stripe checkout session");
+            log.error("StripeException while creating checkout session", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Stripe error: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("Unexpected error while creating checkout session", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Unexpected error occurred");
         }
     }
 

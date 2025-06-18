@@ -31,7 +31,7 @@ public class OrderController {
     @PostMapping
     public ResponseEntity<OrderResponseCreatedDTO> createOrder(@Parameter(description = "Order data") @RequestBody OrderDTO orderDTO, @Parameter(hidden = true) @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long customerId = userDetails.getId();
-        if (!orderDTO.getCustomerId().equals(customerId)) {
+        if (orderDTO.getCustomerId() != null && !orderDTO.getCustomerId().equals(customerId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         OrderResponseCreatedDTO response = orderService.createOrder(orderDTO, customerId);
