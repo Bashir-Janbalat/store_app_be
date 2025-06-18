@@ -6,6 +6,7 @@ import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.store.app.common.ValueWrapper;
@@ -58,8 +59,7 @@ public class OrderServiceImpl implements OrderService {
 
         Set<Long> productIds = ordersDTOS.stream()
                 .flatMap(orderDTO -> orderDTO.getItems().stream())
-                .map(OrderItemDTO::getProductId)
-                .collect(Collectors.toSet());
+                .map(OrderItemDTO::getProductId).collect(Collectors.toSet());
 
         Map<Long, ProductInfoDTO> productInfoMap = orderRepository.findProductInfosByIds(productIds)
                 .stream()
@@ -67,7 +67,7 @@ public class OrderServiceImpl implements OrderService {
                         ProductInfoProjection::getProductId,
                         p -> new ProductInfoDTO(p.getName(), p.getDescription(), p.getImageUrl()),
                         (existing, replacement) -> existing // في حالة وجود نفس المفتاح، نحتفظ بالقيمة الأولى
-                ));
+        ));
 
         for (OrderDTO orderDTO : ordersDTOS) {
             for (OrderItemDTO item : orderDTO.getItems()) {
@@ -84,17 +84,10 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @Caching(evict = {
-            @CacheEvict(value = "orders", key = "#customerId + '-PENDING'"),
-            @CacheEvict(value = "orders", key = "#customerId + '-PROCESSING'"),
-            @CacheEvict(value = "orders", key = "#customerId + '-SHIPPED'"),
-            @CacheEvict(value = "orders", key = "#customerId + '-DELIVERED'"),
-            @CacheEvict(value = "orders", key = "#customerId + '-CANCELLED'")
-    })
+    @Caching(evict = {@CacheEvict(value = "orders", key = "#customerId + '-PENDING'"), @CacheEvict(value = "orders", key = "#customerId + '-PROCESSING'"), @CacheEvict(value = "orders", key = "#customerId + '-SHIPPED'"), @CacheEvict(value = "orders", key = "#customerId + '-DELIVERED'"), @CacheEvict(value = "orders", key = "#customerId + '-CANCELLED'")})
     public OrderResponseCreatedDTO createOrder(OrderDTO orderDTO, Long customerId) {
         log.info("Creating order for customerId: {}", customerId);
-        Customer customer = customerRepository.findById(customerId)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer not found with id: " + customerId));
+        Customer customer = customerRepository.findById(customerId).orElseThrow(() -> new ResourceNotFoundException("Customer not found with id: " + customerId));
 
         if (orderDTO.getShippingAddressId() == null) {
             Long defaultShippingId = customerAddressService.getDefaultAddressId(customerId, AddressType.SHIPPING).getValue();
@@ -122,17 +115,14 @@ public class OrderServiceImpl implements OrderService {
         order.setCustomer(customer);
 
 
-        List<OrderItem> orderItems = cart.getItemDTOS().stream()
-                .map(cartItemDTO -> {
-                    OrderItem item = orderItemMapper.toEntityFromCartItemDTO(cartItemDTO);
-                    item.setOrder(order);
-                    return item;
-                }).toList();
+        List<OrderItem> orderItems = cart.getItemDTOS().stream().map(cartItemDTO -> {
+            OrderItem item = orderItemMapper.toEntityFromCartItemDTO(cartItemDTO);
+            item.setOrder(order);
+            return item;
+        }).toList();
         order.setItems(orderItems);
 
-        BigDecimal totalAmount = orderItems.stream()
-                .map(OrderItem::getTotalPrice)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalAmount = orderItems.stream().map(OrderItem::getTotalPrice).reduce(BigDecimal.ZERO, BigDecimal::add);
         order.setTotalAmount(totalAmount);
 
         order.setStatus(OrderStatus.PENDING);
@@ -144,19 +134,31 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public Order updateOrderStatus(Long orderId, OrderStatus newStatus) {
+    public Order updateOrderStatus(Long orderId, OrderStatus newStatus, Long currentCustomerId) {
         log.info("Updating order status. Order ID: {}, New Status: {}", orderId, newStatus);
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
 
-        Long customerId = order.getCustomer().getId();
+        Long orderOwnerId = order.getCustomer().getId();
+
+        if (!orderOwnerId.equals(currentCustomerId)) {
+            throw new AccessDeniedException("You are not allowed to update this order.");
+        }
         OrderStatus oldStatus = order.getStatus();
+
+        if (!isValidStatusTransition(oldStatus, newStatus)) {
+            throw new IllegalStateException("Invalid status transition from " + oldStatus + " to " + newStatus);
+        }
+        if (oldStatus == newStatus) {
+            log.info("Order already has status '{}', skipping update", newStatus);
+            return order;
+        }
 
         order.setStatus(newStatus);
         Order updated = orderRepository.save(order);
         log.info("Order status updated successfully. Order ID: {}, Status: {}", orderId, newStatus);
 
-        String oldKey = customerId + "-" + oldStatus;
-        String newKey = customerId + "-" + newStatus;
+        String oldKey = orderOwnerId + "-" + oldStatus;
+        String newKey = orderOwnerId + "-" + newStatus;
 
         var cache = cacheManager.getCache("orders");
         if (cache != null) {
@@ -172,8 +174,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public void sendOrderConfirmationEmail(Long orderId, String currency) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
+        Order order = orderRepository.findById(orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
 
         Customer customer = order.getCustomer();
         if (customer == null || customer.getEmail() == null) {
@@ -183,28 +184,29 @@ public class OrderServiceImpl implements OrderService {
 
         String subject = "Order Confirmation #" + order.getId();
         String body = String.format("""
-                        Dear %s,
-                        
-                        Thank you for your purchase!
-                        Your order #%d has been confirmed and is now being processed.
-                        
-                        Total Amount: %s %s
-                        
-                        Shipping to: %s, %s, %s
-                        
-                        Best regards,
-                        Your Online Store
-                        """,
-                customer.getName(),
-                order.getId(),
-                order.getTotalAmount(),
-                currency,
-                order.getShippingAddress().getAddressLine(),
-                order.getShippingAddress().getCity(),
-                order.getShippingAddress().getCountry()
-        );
+                Dear %s,
+                
+                Thank you for your purchase!
+                Your order #%d has been confirmed and is now being processed.
+                
+                Total Amount: %s %s
+                
+                Shipping to: %s, %s, %s
+                
+                Best regards,
+                Your Online Store
+                """, customer.getName(), order.getId(), order.getTotalAmount(), currency, order.getShippingAddress().getAddressLine(), order.getShippingAddress().getCity(), order.getShippingAddress().getCountry());
 
         emailService.sendSimpleMail(customer.getEmail(), subject, body);
         log.info("Order confirmation email sent to {}", customer.getEmail());
+    }
+
+    private boolean isValidStatusTransition(OrderStatus from, OrderStatus to) {
+        return switch (from) {
+            case PENDING -> to == OrderStatus.PROCESSING || to == OrderStatus.CANCELLED;
+            case PROCESSING -> to == OrderStatus.SHIPPED || to == OrderStatus.CANCELLED;
+            case SHIPPED -> to == OrderStatus.DELIVERED;
+            case DELIVERED, CANCELLED -> false;
+        };
     }
 }

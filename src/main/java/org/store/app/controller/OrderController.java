@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.store.app.common.ValueWrapper;
@@ -29,13 +30,28 @@ public class OrderController {
 
     @Operation(summary = "Create a new order for the current customer")
     @PostMapping
-    public ResponseEntity<OrderResponseCreatedDTO> createOrder(@Parameter(description = "Order data") @RequestBody OrderDTO orderDTO, @Parameter(hidden = true) @AuthenticationPrincipal CustomUserDetails userDetails) {
+    public ResponseEntity<OrderResponseCreatedDTO> createOrder(@Parameter(description = "Order data") @RequestBody OrderDTO orderDTO,
+                                                               @Parameter(hidden = true) @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long customerId = userDetails.getId();
         if (orderDTO.getCustomerId() != null && !orderDTO.getCustomerId().equals(customerId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         OrderResponseCreatedDTO response = orderService.createOrder(orderDTO, customerId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @Operation(summary = "Cancel an order manually")
+    @PostMapping("/{orderId}/cancel")
+    public ResponseEntity<String> cancelOrder(@PathVariable Long orderId, @Parameter(hidden = true) @AuthenticationPrincipal CustomUserDetails userDetails) {
+        try {
+            orderService.updateOrderStatus(orderId, OrderStatus.CANCELLED, userDetails.getId());
+            return ResponseEntity.ok("Order " + orderId + " has been cancelled.");
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Not authorized to cancel this order.");
+        } catch (Exception e) {
+            log.error("Failed to cancel order {}", orderId, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to cancel order");
+        }
     }
 
     @Operation(summary = "Get all orders for the current customer filtered by status")

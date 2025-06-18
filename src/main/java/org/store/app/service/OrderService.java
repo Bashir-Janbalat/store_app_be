@@ -14,7 +14,7 @@ public interface OrderService {
 
     OrderResponseCreatedDTO createOrder(OrderDTO orderDTO, Long customerId);
 
-    Order updateOrderStatus(Long orderId, OrderStatus status);
+    Order updateOrderStatus(Long orderId, OrderStatus status, Long customerId);
 
      void sendOrderConfirmationEmail(Long orderId, String currency);
 

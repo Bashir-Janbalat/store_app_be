@@ -68,7 +68,8 @@ public class CheckoutController {
                     Session session = (Session) event.getDataObjectDeserializer().getObject().orElse(null);
                     if (session != null) {
                         Long orderId = Long.valueOf(session.getClientReferenceId());
-                        Order order = orderService.updateOrderStatus(orderId, OrderStatus.PROCESSING);
+                        Long customerId = Long.valueOf(session.getMetadata().get("customer_id"));
+                        Order order = orderService.updateOrderStatus(orderId, OrderStatus.PROCESSING, customerId);
                         orderService.sendOrderConfirmationEmail(orderId, CURRENCY);
                         cartService.updateCartStatus(order.getCart().getId(), CartStatus.CONVERTED);
                         log.info("Order {} marked as PROCESSING", orderId);
@@ -78,7 +79,8 @@ public class CheckoutController {
                     Session session = (Session) event.getDataObjectDeserializer().getObject().orElse(null);
                     if (session != null) {
                         Long orderId = Long.valueOf(session.getClientReferenceId());
-                        orderService.updateOrderStatus(orderId, OrderStatus.CANCELLED);
+                        Long customerId = Long.valueOf(session.getMetadata().get("customer_id"));
+                        orderService.updateOrderStatus(orderId, OrderStatus.CANCELLED, customerId);
                         log.info("Order {} marked as CANCELLED", orderId);
                     }
                 }
