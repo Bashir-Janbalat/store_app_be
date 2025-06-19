@@ -12,9 +12,11 @@ import org.store.app.enums.OrderStatus;
 import org.store.app.exception.ResourceNotFoundException;
 import org.store.app.model.Customer;
 import org.store.app.model.Order;
+import org.store.app.model.Payment;
 import org.store.app.repository.OrderRepository;
 import org.store.app.security.userdetails.CustomUserDetails;
 import org.store.app.service.CheckoutService;
+import org.store.app.service.PaymentService;
 
 import java.math.BigDecimal;
 
@@ -27,6 +29,7 @@ public class CheckoutServiceImpl implements CheckoutService {
     private String domain;
 
     private final OrderRepository orderRepository;
+    private final PaymentService paymentService;
 
     @Override
     @Transactional
@@ -47,19 +50,28 @@ public class CheckoutServiceImpl implements CheckoutService {
         if (totalAmount == null || totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Order amount must be greater than zero");
         }
-
+        Payment payment = paymentService.createPendingPayment(order, totalAmount, "stripe");
         long amountInCents = totalAmount.multiply(BigDecimal.valueOf(100)).longValueExact();
 
         log.info("Creating Stripe session for Order ID: {}, Amount: {}, Currency: {}", orderId, totalAmount, currency);
 
         SessionCreateParams params = SessionCreateParams.builder()
                 .setMode(SessionCreateParams.Mode.PAYMENT)
+                // تمكين الدفع بواسطة بطاقة الائتمان، يشمل أيضاً Apple Pay و Google Pay تلقائياً
+                .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
+                .addPaymentMethodType(SessionCreateParams.PaymentMethodType.AMAZON_PAY)
+                .addPaymentMethodType(SessionCreateParams.PaymentMethodType.SEPA_DEBIT)
+                .addPaymentMethodType(SessionCreateParams.PaymentMethodType.PAYPAL)
+                .addPaymentMethodType(SessionCreateParams.PaymentMethodType.SOFORT)
+                .addPaymentMethodType(SessionCreateParams.PaymentMethodType.KLARNA)
+                .addPaymentMethodType(SessionCreateParams.PaymentMethodType.GIROPAY)
                 .setSuccessUrl(domain + "/payment-success?session_id={CHECKOUT_SESSION_ID}")
                 .setCancelUrl(domain + "/payment-cancel?orderId=" + orderId)
                 .setClientReferenceId(orderId.toString())
                 .setCustomerEmail(userDetails.getEmail())
                 .putMetadata("order_id", orderId.toString())
                 .putMetadata("customer_id", customer.getId().toString())
+                .putMetadata("payment_id", payment.getId().toString())
                 .addLineItem(SessionCreateParams.LineItem.builder()
                         .setQuantity(1L)
                         .setPriceData(SessionCreateParams.LineItem.PriceData.builder()
