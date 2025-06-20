@@ -38,7 +38,7 @@ public class CheckoutSessionCompletedHandler implements StripeEventHandlerServic
         Order order = orderService.updateOrderStatus(data.orderId(), OrderStatus.PROCESSING, data.customerId());
         paymentService.updatePaymentStatus(data.paymentId(), PaymentStatus.COMPLETED, data.paymentIntent(), "Payment completed successfully");
         orderService.sendOrderConfirmationEmail(data.orderId(), "EUR");
-        cartService.updateCartStatus(order.getCart().getId(), CartStatus.CONVERTED);
+        cartService.updateCartStatus(order.getCartId(), CartStatus.CONVERTED);
 
 
         log.info("Handled checkout.session.completed for order: {}", data.orderId());

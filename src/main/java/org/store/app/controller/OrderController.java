@@ -30,13 +30,10 @@ public class OrderController {
 
     @Operation(summary = "Create a new order for the current customer")
     @PostMapping
-    public ResponseEntity<OrderResponseCreatedDTO> createOrder(@Parameter(description = "Order data") @RequestBody OrderDTO orderDTO,
+    public ResponseEntity<OrderResponseCreatedDTO> createOrder(@Parameter(description = "the ID of billing Address ") @RequestParam(required = false) Long billingAddressId,
                                                                @Parameter(hidden = true) @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long customerId = userDetails.getId();
-        if (orderDTO.getCustomerId() != null && !orderDTO.getCustomerId().equals(customerId)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
-        OrderResponseCreatedDTO response = orderService.createOrder(orderDTO, customerId);
+        OrderResponseCreatedDTO response = orderService.createOrder(billingAddressId, customerId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

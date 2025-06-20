@@ -12,7 +12,7 @@ public interface OrderService {
 
     ValueWrapper<List<OrderDTO>> getOrdersByCustomerAndStatus(Long customerId, OrderStatus status);
 
-    OrderResponseCreatedDTO createOrder(OrderDTO orderDTO, Long customerId);
+    OrderResponseCreatedDTO createOrder(Long billingAddressId, Long customerId);
 
     Order updateOrderStatus(Long orderId, OrderStatus status, Long customerId);
 

@@ -127,10 +127,9 @@ public class CustomerAddressServiceImpl implements CustomerAddressService {
     }
 
     @Override
-    public ValueWrapper<Long> getDefaultAddressId(Long customerId, AddressType addressType) {
-        Long id = addressRepository.findDefaultAddressIdByCustomerIdAndType(customerId, addressType)
+    public CustomerAddress getDefaultAddress(Long customerId, AddressType addressType) {
+        return addressRepository.findDefaultAddressIdByCustomerIdAndType(customerId, addressType)
                 .orElseThrow(() -> new ResourceNotFoundException("Default " + addressType.name().toLowerCase() + " address not found for customer with id: " + customerId));
-        return new ValueWrapper<>(id);
     }
 
     private CustomerAddress getAddressIfOwnedByCustomer(Long addressId, Long customerId) {

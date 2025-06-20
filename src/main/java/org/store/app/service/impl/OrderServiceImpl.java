@@ -17,9 +17,11 @@ import org.store.app.exception.ResourceNotFoundException;
 import org.store.app.mapper.OrderItemMapper;
 import org.store.app.mapper.OrderMapper;
 import org.store.app.model.Customer;
+import org.store.app.model.CustomerAddress;
 import org.store.app.model.Order;
 import org.store.app.model.OrderItem;
 import org.store.app.projection.ProductInfoProjection;
+import org.store.app.repository.CustomerAddressRepository;
 import org.store.app.repository.CustomerRepository;
 import org.store.app.repository.OrderRepository;
 import org.store.app.service.CartService;
@@ -43,6 +45,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderMapper orderMapper;
     private final CustomerRepository customerRepository;
     private final CustomerAddressService customerAddressService;
+    private final CustomerAddressRepository customerAddressRepository;
     private final EmailService emailService;
     private final CartService cartService;
     private final OrderItemMapper orderItemMapper;
@@ -66,9 +69,7 @@ public class OrderServiceImpl implements OrderService {
                 .collect(Collectors.toMap(
                         ProductInfoProjection::getProductId,
                         p -> new ProductInfoDTO(p.getName(), p.getDescription(), p.getImageUrl()),
-                        (existing, replacement) -> existing // في حالة وجود نفس المفتاح، نحتفظ بالقيمة الأولى
-        ));
-
+                        (existing, replacement) -> existing));
         for (OrderDTO orderDTO : ordersDTOS) {
             for (OrderItemDTO item : orderDTO.getItems()) {
                 ProductInfoDTO productInfoDTO = productInfoMap.get(item.getProductId());
@@ -84,54 +85,43 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @Caching(evict = {@CacheEvict(value = "orders", key = "#customerId + '-PENDING'"), @CacheEvict(value = "orders", key = "#customerId + '-PROCESSING'"), @CacheEvict(value = "orders", key = "#customerId + '-SHIPPED'"), @CacheEvict(value = "orders", key = "#customerId + '-DELIVERED'"), @CacheEvict(value = "orders", key = "#customerId + '-CANCELLED'")})
-    public OrderResponseCreatedDTO createOrder(OrderDTO orderDTO, Long customerId) {
+    @Caching(evict = {
+            @CacheEvict(value = "orders", key = "#customerId + '-PENDING'"),
+            @CacheEvict(value = "orders", key = "#customerId + '-PROCESSING'"),
+            @CacheEvict(value = "orders", key = "#customerId + '-SHIPPED'"),
+            @CacheEvict(value = "orders", key = "#customerId + '-DELIVERED'"),
+            @CacheEvict(value = "orders", key = "#customerId + '-CANCELLED'")
+    })
+    public OrderResponseCreatedDTO createOrder(Long billingAddressId, Long customerId) {
         log.info("Creating order for customerId: {}", customerId);
-        Customer customer = customerRepository.findById(customerId).orElseThrow(() -> new ResourceNotFoundException("Customer not found with id: " + customerId));
-
-        if (orderDTO.getShippingAddressId() == null) {
-            Long defaultShippingId = customerAddressService.getDefaultAddressId(customerId, AddressType.SHIPPING).getValue();
-            log.info("Using default shipping address with ID: {}", defaultShippingId);
-            orderDTO.setShippingAddressId(defaultShippingId);
-        } else {
-            log.info("Verifying provided shipping address ID: {}", orderDTO.getShippingAddressId());
-            customerAddressService.verifyAddressOwnership(orderDTO.getShippingAddressId(), customerId);
-        }
-
-        if (orderDTO.getBillingAddressId() == null) {
-            Long defaultBillingId = customerAddressService.getDefaultAddressId(customerId, AddressType.BILLING).getValue();
-            log.info("Using default billing address with ID: {}", defaultBillingId);
-            orderDTO.setBillingAddressId(defaultBillingId);
-        } else {
-            log.info("Verifying provided billing address ID: {}", orderDTO.getBillingAddressId());
-            customerAddressService.verifyAddressOwnership(orderDTO.getBillingAddressId(), customerId);
-        }
-        log.info("Fetching cart with ID: {}", orderDTO.getCartId());
-        CartDTO cart = cartService.getActiveCart(customer.getEmail(), null);
-        if (cart != null && (cart.getItemDTOS() == null || cart.getItemDTOS().isEmpty())) {
-            throw new ResourceNotFoundException("Cart is empty");
-        }
+        OrderDTO orderDTO = new OrderDTO();
+        Customer customer = getCustomer(customerId);
+        CustomerAddress defaultShippingAddress = getDefaultShippingAddress(customerId);
+        orderDTO.setShippingAddressId(defaultShippingAddress.getId());
+        CustomerAddress billingAddress = getBillingAddress(billingAddressId, customerId);
+        orderDTO.setBillingAddressId(billingAddressId);
+        log.info("Fetching active cart for customer ID: {}", customerId);
+        CartDTO cart = getActiveCartForCustomer(customer);
         Order order = orderMapper.toEntity(orderDTO);
+        order.setCartId(cart.getCartId());
         order.setCustomer(customer);
-
-
-        List<OrderItem> orderItems = cart.getItemDTOS().stream().map(cartItemDTO -> {
-            OrderItem item = orderItemMapper.toEntityFromCartItemDTO(cartItemDTO);
-            item.setOrder(order);
-            return item;
-        }).toList();
+        order.setShippingAddress(defaultShippingAddress);
+        if (billingAddress != null) {
+            order.setBillingAddress(billingAddress);
+        }
+        List<OrderItem> orderItems = getOrderItems(cart, order);
         order.setItems(orderItems);
 
-        BigDecimal totalAmount = orderItems.stream().map(OrderItem::getTotalPrice).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalAmount = getTotalAmount(orderItems);
         order.setTotalAmount(totalAmount);
-
         order.setStatus(OrderStatus.PENDING);
+
         Order savedOrder = orderRepository.save(order);
         log.info("Order created successfully with ID: {}, Total amount: {}", savedOrder.getId(), savedOrder.getTotalAmount());
+
         return new OrderResponseCreatedDTO(savedOrder.getId(), savedOrder.getTotalAmount());
     }
-
-
+    
     @Override
     @Transactional
     public Order updateOrderStatus(Long orderId, OrderStatus newStatus, Long currentCustomerId) {
@@ -208,5 +198,50 @@ public class OrderServiceImpl implements OrderService {
             case SHIPPED -> to == OrderStatus.DELIVERED;
             case DELIVERED, CANCELLED -> false;
         };
+    }
+    private static BigDecimal getTotalAmount(List<OrderItem> orderItems) {
+        return orderItems.stream()
+                .map(OrderItem::getTotalPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private List<OrderItem> getOrderItems(CartDTO cart, Order order) {
+        return cart.getItemDTOS().stream().map(cartItemDTO -> {
+            OrderItem item = orderItemMapper.toEntityFromCartItemDTO(cartItemDTO);
+            item.setOrder(order);
+            return item;
+        }).toList();
+    }
+
+    private CartDTO getActiveCartForCustomer(Customer customer) {
+        CartDTO cart = cartService.getActiveCart(customer.getEmail(), null);
+        if (cart == null || cart.getItemDTOS() == null || cart.getItemDTOS().isEmpty()) {
+            throw new ResourceNotFoundException("Cart is empty");
+        }
+        return cart;
+    }
+
+    private CustomerAddress getBillingAddress(Long billingAddressId, Long customerId) {
+        CustomerAddress billingAddress = null;
+        if (billingAddressId != null) {
+            log.info("Verifying provided billing address ID: {}", billingAddressId);
+            customerAddressService.verifyAddressOwnership(billingAddressId, customerId);
+            billingAddress = customerAddressRepository.findById(billingAddressId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Billing address not found"));
+        } else {
+            log.info("No billing address provided. Skipping billing verification.");
+        }
+        return billingAddress;
+    }
+
+    private Customer getCustomer(Long customerId) {
+        return customerRepository.findById(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found with id: " + customerId));
+    }
+
+    private CustomerAddress getDefaultShippingAddress(Long customerId) {
+        CustomerAddress defaultShippingAddress = customerAddressService.getDefaultAddress(customerId, AddressType.SHIPPING);
+        log.info("Using default shipping address with ID: {}", defaultShippingAddress.getId());
+        return defaultShippingAddress;
     }
 }

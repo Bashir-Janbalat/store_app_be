@@ -3,6 +3,7 @@ package org.store.app.service;
 import org.store.app.common.ValueWrapper;
 import org.store.app.dto.CustomerAddressDTO;
 import org.store.app.enums.AddressType;
+import org.store.app.model.CustomerAddress;
 
 import java.util.List;
 
@@ -19,5 +20,5 @@ public interface CustomerAddressService {
 
     void verifyAddressOwnership(Long addressId, Long customerId);
 
-    ValueWrapper<Long> getDefaultAddressId(Long customerId, AddressType addressType) ;
+    CustomerAddress getDefaultAddress(Long customerId, AddressType addressType) ;
 }

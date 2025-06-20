@@ -10,7 +10,6 @@ import org.store.app.model.Order;
 public interface OrderMapper {
 
 
-    @Mapping(source = "cart.id",target = "cartId")
     @Mapping(source = "customer.id", target = "customerId")
     @Mapping(source = "shippingAddress.id", target = "shippingAddressId")
     @Mapping(source = "billingAddress.id", target = "billingAddressId")
@@ -18,9 +17,8 @@ public interface OrderMapper {
     @Mapping(source = "billingAddress.customer.id", target = "billingAddress.customerId")
     OrderDTO toDto(Order order);
 
-    @Mapping(source = "cartId", target = "cart.id")
-    @Mapping(source = "customerId", target = "customer.id")
-    @Mapping(source = "shippingAddressId", target = "shippingAddress.id")
-    @Mapping(source = "billingAddressId", target = "billingAddress.id")
+    @Mapping(target = "customer", ignore = true)
+    @Mapping(target = "shippingAddress", ignore = true)
+    @Mapping(target = "billingAddress", ignore = true)
     Order toEntity(OrderDTO orderDTO);
 }

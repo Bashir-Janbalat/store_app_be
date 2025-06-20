@@ -21,10 +21,10 @@ public interface CustomerAddressRepository extends JpaRepository<CustomerAddress
     void clearDefaultForCustomerAndType(@Param("customerId") Long customerId, @Param("type") AddressType type);
 
 
-    @Query(" SELECT a.id FROM CustomerAddress a " +
+    @Query(" SELECT a FROM CustomerAddress a " +
            "WHERE a.customer.id = :customerId " +
            "AND a.addressType = :addressType " +
            "AND a.defaultAddress = true " +
            "AND a.deleted = false ")
-    Optional<Long> findDefaultAddressIdByCustomerIdAndType(@Param("customerId") Long customerId, @Param("addressType") AddressType addressType);
+    Optional<CustomerAddress> findDefaultAddressIdByCustomerIdAndType(@Param("customerId") Long customerId, @Param("addressType") AddressType addressType);
 }
