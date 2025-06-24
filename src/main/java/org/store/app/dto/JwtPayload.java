@@ -21,6 +21,15 @@ public class JwtPayload {
     @Schema(description = "Customer full name", example = "John Doe")
     private String name;
 
+    @Schema(description = "Customer phone number", example = "512345678")
+    private String phone;
+
+    @Schema(description = "Customer country ISO code", example = "DE")
+    private String countryCode;
+
+    @Schema(description = "Customer dial code", example = "+49")
+    private String dialCode;
+
     @Schema(description = "List of Customer roles", example = "[\"ROLE_CUSTOMER\"")
     private List<String> roles;
 }

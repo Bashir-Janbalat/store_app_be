@@ -19,6 +19,12 @@ public class Customer extends BaseEntity {
     private String phone;
     private String password;
 
+    @Column(name = "country_code", length = 2)
+    private String countryCode;
+
+    @Column(name = "dial_code", length = 10)
+    private String dialCode;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "customer_roles",
             joinColumns = @JoinColumn(name = "customer_id", referencedColumnName = "id"),

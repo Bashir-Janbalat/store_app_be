@@ -27,6 +27,14 @@ public class CustomerDTO extends BaseDTO implements Serializable {
     @Schema(description = "Email address of the customer", example = "john.doe@example.com")
     private String email;
 
+    @Schema(description = "Country code (ISO Alpha-2 format)", example = "DE")
+    @Size(min = 2, max = 2, message = "Country code must be 2 characters (ISO Alpha-2)")
+    private String countryCode;
+
+    @Schema(description = "International dialing code", example = "+1")
+    @Pattern(regexp = "^\\+\\d{1,5}$", message = "Dial code must start with '+' followed by 1 to 5 digits")
+    private String dialCode;
+
     @Schema(description = "Phone number of the customer", example = "+1234567890")
     private String phone;
 

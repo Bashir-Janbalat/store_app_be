@@ -40,6 +40,9 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 customer.getEmail(),
                 customer.getName(),
                 customer.getPassword(),
+                customer.getPhone(),
+                customer.getCountryCode(),
+                customer.getDialCode(),
                 authorities
         );
     }

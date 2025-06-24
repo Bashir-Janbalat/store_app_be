@@ -14,13 +14,20 @@ public class CustomUserDetails implements UserDetails {
     private final String name;
     private final String password;
     private final Collection<? extends GrantedAuthority> authorities;
+    private final String phone;
+    private final String countryCode;
+    private final String dialCode;
 
     public CustomUserDetails(Long id, String email, String name, String password,
+                             String phone, String countryCode, String dialCode,
                              Collection<? extends GrantedAuthority> authorities) {
         this.id = id;
         this.email = email;
         this.name = name;
         this.password = password;
+        this.phone = phone;
+        this.countryCode = countryCode;
+        this.dialCode = dialCode;
         this.authorities = authorities;
     }
 

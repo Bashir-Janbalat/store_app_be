@@ -22,6 +22,7 @@ import org.store.app.security.config.CookieProperties;
 import org.store.app.security.jwt.JwtTokenProvider;
 import org.store.app.security.userdetails.CustomUserDetails;
 import org.store.app.service.*;
+import org.store.app.service.impl.UserDetailsServiceImpl;
 
 import java.util.Optional;
 
@@ -38,8 +39,8 @@ public class AuthController {
     private final JwtTokenProvider jwtTokenProvider;
     private final CartService cartService;
     private final WishlistService wishlistService;
-
     private final CookieProperties cookieProperties;
+    private final UserDetailsServiceImpl userDetailsService;
 
     @Value("${jwt.expiration.time}")
     private long jwtExpirationTime;
@@ -107,7 +108,7 @@ public class AuthController {
             @ApiResponse(responseCode = "401", description = "Unauthorized – JWT token is missing or invalid")
     })
     @GetMapping("/me")
-    public ResponseEntity<JwtPayload> getCurrentCustomer(@AuthenticationPrincipal CustomUserDetails userDetails) {
+    public ResponseEntity<JwtPayload> getCurrentCustomer(@Parameter(hidden = true) @AuthenticationPrincipal CustomUserDetails userDetails) {
         if (userDetails == null) {
             log.warn("Unauthorized access to /me endpoint");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
@@ -117,12 +118,50 @@ public class AuthController {
                 userDetails.getId(),
                 userDetails.getEmail(),
                 userDetails.getName(),
+                userDetails.getPhone(),
+                userDetails.getCountryCode(),
+                userDetails.getDialCode(),
                 userDetails.getAuthorities().stream()
                         .map(GrantedAuthority::getAuthority)
                         .toList()
         );
 
         return ResponseEntity.ok(payload);
+    }
+
+    @PutMapping("/me")
+    @Operation(summary = "Update customer profile", description = "Update name and phone of the authenticated customer")
+    public ResponseEntity<JwtPayload> updateProfile(
+            @Parameter(hidden = true) @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestBody @Valid UpdateProfileDTO updateProfileDTO) {
+
+        if (userDetails == null) {
+            log.warn("Unauthorized access to update profile");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        log.info("User [{}] is updating profile.", userDetails.getEmail());
+        customerService.updateNameAndPhone(
+                userDetails.getId(),
+                updateProfileDTO.getName(),
+                updateProfileDTO.getPhone(),
+                updateProfileDTO.getDialCode(),
+                updateProfileDTO.getCountryCode()
+        );
+        CustomUserDetails updatedUser = (CustomUserDetails) userDetailsService.loadUserByUsername(userDetails.getEmail());
+
+        JwtPayload updatedPayload = new JwtPayload(
+                updatedUser.getId(),
+                updatedUser.getEmail(),
+                updatedUser.getName(),
+                updatedUser.getPhone(),
+                updatedUser.getCountryCode(),
+                updatedUser.getDialCode(),
+                updatedUser.getAuthorities().stream()
+                        .map(GrantedAuthority::getAuthority)
+                        .toList()
+        );
+        log.info("User [{}] profile updated successfully", userDetails.getEmail());
+        return ResponseEntity.ok(updatedPayload);
     }
 
     @Operation(summary = "Customer registration", description = "Register a new Customer account")

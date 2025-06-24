@@ -59,4 +59,17 @@ public class CustomerServiceImpl implements CustomerService {
         customerRepository.save(customer);
         log.info("Password updated successfully for customer '{}'", email);
     }
+
+    @Override
+    public void updateNameAndPhone(Long customerId, String name, String phone, String dialCode, String countryCode) {
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new RuntimeException("Customer not found"));
+
+        customer.setName(name);
+        customer.setPhone(phone);
+        customer.setDialCode(dialCode);
+        customer.setCountryCode(countryCode);
+
+        customerRepository.save(customer);
+    }
 }
