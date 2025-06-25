@@ -28,7 +28,12 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long> {
                     WHERE i.product_id = p.id 
                     ORDER BY i.id ASC 
                     LIMIT 1
-                ) AS imageUrl
+                ) AS imageUrl,
+                (
+                SELECT COALESCE(SUM(s.quantity), 0)
+                FROM stock s
+                WHERE s.product_id = p.id
+                ) AS totalStock
             FROM cart_items ci
             JOIN products p ON p.id = ci.product_id
             WHERE ci.cart_id = :cartId

@@ -16,7 +16,16 @@ public class ProductInfoDTO {
 
     @Schema(description = "Description of the product", example = "High quality wireless headphones with noise cancellation")
     private String description;
-    
+
     @Schema(description = "URL of the product image", example = "https://example.com/images/product123.jpg")
     private String imageUrl;
+
+    @Schema(description = "Total stock of the product", example = "100")
+    private Long totalStock;
+
+    public ProductInfoDTO(String name, String description, String imageUrl) {
+        this.name = name;
+        this.description = description;
+        this.imageUrl = imageUrl;
+    }
 }

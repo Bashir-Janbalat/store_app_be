@@ -51,7 +51,8 @@ public class CartServiceImpl implements CartService {
 
         List<CartItemProductProjection> projections = cartItemRepository.findCartItemsWithProductInfo(cart.getId());
 
-        List<CartItemDTO> result = projections.stream().map(p -> new CartItemDTO(p.getProductId(), p.getQuantity(), p.getUnitPrice(), new ProductInfoDTO(p.getName(), p.getDescription(), p.getImageUrl()))).toList();
+        List<CartItemDTO> result = projections.stream().map(p -> new CartItemDTO(p.getProductId(), p.getQuantity(), p.getUnitPrice(),
+                new ProductInfoDTO(p.getName(), p.getDescription(), p.getImageUrl(),p.getTotalStock()))).toList();
         log.info("Loaded {} cart items from database for cartId={} (key='{}')", result.size(), cart.getId(), cacheKey);
         return new CartDTO(cart.getId(), result);
     }

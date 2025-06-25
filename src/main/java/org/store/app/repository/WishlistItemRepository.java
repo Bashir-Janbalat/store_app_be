@@ -33,7 +33,12 @@ public interface WishlistItemRepository extends JpaRepository<WishlistItem, Long
                 WHERE i.product_id = p.id 
                 ORDER BY i.id ASC 
                 LIMIT 1
-            ) AS imageUrl
+            ) AS imageUrl,
+            (
+                SELECT COALESCE(SUM(s.quantity), 0)
+                FROM stock s
+                WHERE s.product_id = p.id
+            ) AS totalStock
         FROM wishlist_items wi
         JOIN products p ON p.id = wi.product_id
         WHERE wi.wishlist_id = :wishlistId

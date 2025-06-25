@@ -15,4 +15,6 @@ public interface CartItemProductProjection {
     String getDescription();
 
     String getImageUrl();
+
+    Long getTotalStock();
 }

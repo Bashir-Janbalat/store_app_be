@@ -55,7 +55,7 @@ public class WishlistServiceImpl implements WishlistService {
                 .map(p -> new WishlistItemDTO(
                         p.getProductId(),
                         p.getUnitPrice(),
-                        new ProductInfoDTO(p.getName(), p.getDescription(), p.getImageUrl())
+                        new ProductInfoDTO(p.getName(), p.getDescription(), p.getImageUrl(),p.getTotalStock())
                 ))
                 .collect(Collectors.toList());
 
