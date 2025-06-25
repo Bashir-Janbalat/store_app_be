@@ -102,6 +102,7 @@ public class OrderServiceImpl implements OrderService {
         orderDTO.setBillingAddressId(billingAddressId);
         log.info("Fetching active cart for customer ID: {}", customerId);
         CartDTO cart = getActiveCartForCustomer(customer);
+        validateCartStock(cart);
         Order order = orderMapper.toEntity(orderDTO);
         order.setCartId(cart.getCartId());
         order.setCustomer(customer);
@@ -121,7 +122,19 @@ public class OrderServiceImpl implements OrderService {
 
         return new OrderResponseCreatedDTO(savedOrder.getId(), savedOrder.getTotalAmount());
     }
-    
+
+    private void validateCartStock(CartDTO cart) {
+        List<CartItemDTO> items = cart.getItemDTOS();
+        for (CartItemDTO item : items) {
+            if (item.getQuantity() <= 0) {
+                throw new ResourceNotFoundException("Quantity for product with id: " + item.getProductId() + " is 0 or less. Cannot create order. Please update the cart and try again.");
+            }
+            if (item.getProduct().getTotalStock() <= 0) {
+                throw new ResourceNotFoundException("Product with id: " + item.getProductId() + " is out of stock. Cannot create order. Please update the cart and try again.");
+            }
+        }
+    }
+
     @Override
     @Transactional
     public Order updateOrderStatus(Long orderId, OrderStatus newStatus, Long currentCustomerId) {
@@ -199,6 +212,7 @@ public class OrderServiceImpl implements OrderService {
             case DELIVERED, CANCELLED -> false;
         };
     }
+
     private static BigDecimal getTotalAmount(List<OrderItem> orderItems) {
         return orderItems.stream()
                 .map(OrderItem::getTotalPrice)
