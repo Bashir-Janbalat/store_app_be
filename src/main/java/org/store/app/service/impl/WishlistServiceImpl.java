@@ -21,6 +21,7 @@ import org.store.app.repository.WishlistItemRepository;
 import org.store.app.repository.WishlistRepository;
 import org.store.app.service.WishlistService;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -40,9 +41,10 @@ public class WishlistServiceImpl implements WishlistService {
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "wishlistItems", key = "#email != null ? 'email:' + #email : 'session:' + #sessionId")
+    @Caching(cacheable = {
+            @Cacheable(value = "wishlistItems", key = "'session:' + #sessionId", condition = "#sessionId != null && #sessionId.length() > 0")
+    })
     public ValueWrapper<List<WishlistItemDTO>> getWishlistItemsForCurrentCustomer(String email, String sessionId) {
-        String cacheKey = email != null ? email : sessionId;
         Wishlist wishlist = findActiveWishlistOrNull(email, sessionId);
 
         if (wishlist == null) {
@@ -55,18 +57,18 @@ public class WishlistServiceImpl implements WishlistService {
                 .map(p -> new WishlistItemDTO(
                         p.getProductId(),
                         p.getUnitPrice(),
-                        new ProductInfoDTO(p.getName(), p.getDescription(), p.getImageUrl(),p.getTotalStock())
+                        new ProductInfoDTO(p.getName(), p.getDescription(), p.getImageUrl(), p.getTotalStock())
                 ))
                 .collect(Collectors.toList());
 
-        log.info("Loaded {} wishlist item(s) from database for key: '{}'", result.size(), cacheKey);
+        log.info("Loaded {} wishlist items from database for wishlistId={} (set in cache with Key='session:{}')", result.size(), wishlist.getId(), sessionId);
         return new ValueWrapper<>(result);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     @Caching(evict = {
-            @CacheEvict(value = "wishlistItems", key = "#email != null ? 'email:' + #email : 'session:' + #sessionId")
+            @CacheEvict(value = "wishlistItems", key = "'session:' + #sessionId")
     })
     public void addToWishlist(String email, String sessionId, Long productId) {
         if (productId == null) {
@@ -98,44 +100,41 @@ public class WishlistServiceImpl implements WishlistService {
         } else {
             log.info("Product with id {} already exists in wishlist", productId);
         }
-        logCacheEvict(email, sessionId);
+        logCacheEvict(sessionId);
     }
 
     @Override
     @Transactional
     @Caching(evict = {
-            @CacheEvict(value = "wishlistItems", key = "#email != null ? 'email:' + #email : 'session:' + #sessionId")
+            @CacheEvict(value = "wishlistItems", key = "'session:' + #sessionId")
     })
     public void removeFromWishlist(String email, String sessionId, Long productId) {
-        logCacheEvict(email, sessionId);
         Wishlist wishlist = findActiveWishlist(email, sessionId);
         WishlistItem item = wishlistItemRepository.findByWishlistIdAndProductId(wishlist.getId(), productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Wishlist item not found"));
         wishlistItemRepository.delete(item);
         log.info("Removed product id {} from wishlist (key: {})", productId, email != null ? "email:" + email : "session:" + sessionId);
-        logCacheEvict(email, sessionId);
+        logCacheEvict(sessionId);
     }
 
     @Override
     @Transactional
     @Caching(evict = {
-            @CacheEvict(value = "wishlistItems", key = "#email != null ? 'email:' + #email : 'session:' + #sessionId")
+            @CacheEvict(value = "wishlistItems", key = "'session:' + #sessionId")
     })
     public void clearWishlist(String email, String sessionId) {
-        logCacheEvict(email, sessionId);
         Wishlist wishlist = findActiveWishlistOrNull(email, sessionId);
         if (wishlist == null) {
             return;
         }
         wishlistItemRepository.deleteAllByWishlistId(wishlist.getId());
         log.info("Clearing wishlist for '{}'", email != null ? email : sessionId);
-        logCacheEvict(email, sessionId);
+        logCacheEvict(sessionId);
     }
 
     @Override
     @Transactional
     @Caching(evict = {
-            @CacheEvict(value = "wishlistItems", key = "'email:' + #email"),
             @CacheEvict(value = "wishlistItems", key = "'session:' + #sessionId")
     })
     public void mergeWishlistOnLogin(String email, String sessionId) {
@@ -151,7 +150,6 @@ public class WishlistServiceImpl implements WishlistService {
 
         if (userWishlistOpt.isEmpty()) {
             sessionWishlist.setCustomer(customer);
-            sessionWishlist.setSessionId(null);
             wishlistRepository.save(sessionWishlist);
         } else {
             Wishlist userWishlist = userWishlistOpt.get();
@@ -170,13 +168,20 @@ public class WishlistServiceImpl implements WishlistService {
                 }
                 wishlistItemRepository.delete(item);
             }
-
+            // أبقاء السيشن في حال أنتهت صالحية التوكن
+            userWishlist.setSessionId(sessionWishlist.getSessionId());
+            wishlistRepository.save(userWishlist);
             if (wishlistItemRepository.findByWishlist(sessionWishlist).isEmpty()) {
                 wishlistRepository.delete(sessionWishlist);
             }
         }
         log.info("Merged wishlist for '{}' and '{}'", email, sessionId);
-        log.info("Cache 'wishlistItems' evicted for keys: '{}' and '{}'", email, sessionId);
+        logCacheEvict(sessionId);
+    }
+
+    @Override
+    public int deleteOldAnonymousWishlists(LocalDateTime cutoffDate) {
+        return wishlistRepository.deleteWishlistsWithoutCustomerBefore(cutoffDate);
     }
 
     private Wishlist findActiveWishlistOrNull(String email, String sessionId) {
@@ -198,8 +203,7 @@ public class WishlistServiceImpl implements WishlistService {
         return wishlist;
     }
 
-    private void logCacheEvict(String email, String sessionId) {
-        String key = email != null ? "email:" + email : "session:" + sessionId;
-        log.info("Cache 'wishlistItems' evicted for key: '{}'", key);
+    private void logCacheEvict(String sessionId) {
+        log.info("Cache 'wishlistItems' evicted for key: session='{}'", sessionId);
     }
 }
