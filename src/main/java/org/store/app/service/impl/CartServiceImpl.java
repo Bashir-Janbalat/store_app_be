@@ -74,6 +74,7 @@ public class CartServiceImpl implements CartService {
             if (email != null && !email.isBlank()) {
                 Customer customer = customerRepository.findByEmail(email).orElseThrow(() -> new ResourceNotFoundException("Customer with email {" + email + "} not found"));
                 cart.setCustomer(customer);
+                cart.setSessionId(sessionId);
                 log.info("Created new cart for customer '{}'", email);
             } else {
                 cart.setSessionId(sessionId);

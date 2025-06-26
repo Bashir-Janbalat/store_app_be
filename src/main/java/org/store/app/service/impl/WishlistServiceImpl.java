@@ -84,6 +84,7 @@ public class WishlistServiceImpl implements WishlistService {
                 Customer customer = customerRepository.findByEmail(email)
                         .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
                 wishlist.setCustomer(customer);
+                wishlist.setSessionId(sessionId);
             } else {
                 wishlist.setSessionId(sessionId);
             }
