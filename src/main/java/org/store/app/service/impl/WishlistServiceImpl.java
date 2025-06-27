@@ -21,14 +21,13 @@ import org.store.app.repository.WishlistItemRepository;
 import org.store.app.repository.WishlistRepository;
 import org.store.app.service.WishlistService;
 
+import java.nio.file.AccessDeniedException;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static org.store.app.util.RequestUtils.validateSessionOrEmail;
 
 @Service
 @RequiredArgsConstructor
@@ -40,14 +39,28 @@ public class WishlistServiceImpl implements WishlistService {
     private final CustomerRepository customerRepository;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     @Caching(cacheable = {
             @Cacheable(value = "wishlistItems", key = "'session:' + #sessionId", condition = "#sessionId != null && #sessionId.length() > 0")
     })
     public ValueWrapper<List<WishlistItemDTO>> getWishlistItemsForCurrentCustomer(String email, String sessionId) {
         Wishlist wishlist = findActiveWishlistOrNull(email, sessionId);
 
-        if (wishlist == null) {
+        if (wishlist == null && email != null && !email.isBlank()) {
+            Customer customer = customerRepository.findByEmail(email)
+                    .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+            Wishlist newWishlist = new Wishlist();
+            newWishlist.setStatus(WishlistStatus.ACTIVE);
+            newWishlist.setCustomer(customer);
+            newWishlist.setSessionId(sessionId);
+            wishlistRepository.save(newWishlist);
+            return new ValueWrapper<>(Collections.emptyList());
+        }
+        if (wishlist == null && sessionId != null && !sessionId.isBlank()) {
+            Wishlist newWishlist = new Wishlist();
+            newWishlist.setStatus(WishlistStatus.ACTIVE);
+            newWishlist.setSessionId(sessionId);
+            wishlistRepository.save(newWishlist);
             return new ValueWrapper<>(Collections.emptyList());
         }
 
@@ -70,25 +83,14 @@ public class WishlistServiceImpl implements WishlistService {
     @Caching(evict = {
             @CacheEvict(value = "wishlistItems", key = "'session:' + #sessionId")
     })
-    public void addToWishlist(String email, String sessionId, Long productId) {
+    public void addToWishlist(String email, String sessionId, Long productId) throws AccessDeniedException {
         if (productId == null) {
             throw new IllegalArgumentException("Product ID must not be null");
         }
-        validateSessionOrEmail(email, sessionId);
 
         Wishlist wishlist = findActiveWishlistOrNull(email, sessionId);
         if (wishlist == null) {
-            wishlist = new Wishlist();
-            wishlist.setStatus(WishlistStatus.ACTIVE);
-            if (email != null && !email.isBlank()) {
-                Customer customer = customerRepository.findByEmail(email)
-                        .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
-                wishlist.setCustomer(customer);
-                wishlist.setSessionId(sessionId);
-            } else {
-                wishlist.setSessionId(sessionId);
-            }
-            wishlist = wishlistRepository.save(wishlist);
+            throw new AccessDeniedException("Unauthorized access");
         }
 
         boolean exists = wishlistItemRepository.existsByWishlistIdAndProductId(wishlist.getId(), productId);

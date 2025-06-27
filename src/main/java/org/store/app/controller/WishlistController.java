@@ -17,6 +17,7 @@ import org.store.app.dto.AddToWishlistRequest;
 import org.store.app.dto.WishlistItemDTO;
 import org.store.app.service.WishlistService;
 
+import java.nio.file.AccessDeniedException;
 import java.util.List;
 
 import static org.store.app.util.RequestUtils.*;
@@ -46,7 +47,7 @@ public class WishlistController {
     @ApiResponse(responseCode = "200", description = "Item added to wishlist successfully")
     @Parameter(name = "sessionId", in = ParameterIn.COOKIE, description = "Session ID cookie for guest customers")
     @PostMapping("/add")
-    public ResponseEntity<Void> addToWishlist(HttpServletRequest request, @Valid @RequestBody AddToWishlistRequest dto) {
+    public ResponseEntity<Void> addToWishlist(HttpServletRequest request, @Valid @RequestBody AddToWishlistRequest dto) throws AccessDeniedException {
         String email = getCurrentUserEmail();
         String sessionId = resolveSessionId(request);
         validateSessionOrEmail(email, sessionId);

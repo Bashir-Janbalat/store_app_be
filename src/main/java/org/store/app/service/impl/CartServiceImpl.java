@@ -8,10 +8,9 @@ import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.store.app.dto.CartDTO;
-import org.store.app.dto.CartItemDTO;
-import org.store.app.dto.ProductInfoDTO;
 import org.store.app.enums.CartStatus;
 import org.store.app.exception.ResourceNotFoundException;
+import org.store.app.mapper.CartMapper;
 import org.store.app.model.Cart;
 import org.store.app.model.CartItem;
 import org.store.app.model.Customer;
@@ -22,6 +21,7 @@ import org.store.app.repository.CustomerRepository;
 import org.store.app.service.CartService;
 
 import java.math.BigDecimal;
+import java.nio.file.AccessDeniedException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -36,24 +36,41 @@ public class CartServiceImpl implements CartService {
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
     private final CustomerRepository customerRepository;
+    private final CartMapper cartMapper;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     @Cacheable(value = "cart", key = "'session:' + #sessionId", condition = "#sessionId != null && #sessionId.length() > 0")
     public CartDTO getActiveCart(String email, String sessionId) {
         Cart cart = findActiveCartOrNull(email, sessionId);
 
-        if (cart == null) {
+        if (cart == null && email != null && !email.isBlank()) {
+            log.info("No active cart found for email: '{}'", email);
+            Customer customer = customerRepository.findByEmail(email)
+                    .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+            cart = new Cart();
+            cart.setStatus(CartStatus.ACTIVE);
+            cart.setCustomer(customer);
+            cart.setSessionId(sessionId);
+            Cart saved = cartRepository.save(cart);
+            return cartMapper.toDto(saved);
+        }
+
+
+        if (cart == null && sessionId != null && !sessionId.isBlank()) {
             log.info("No active cart found for cacheKey: '{}' and email: '{}'", sessionId, email);
-            return new CartDTO();
+            cart = new Cart();
+            cart.setStatus(CartStatus.ACTIVE);
+            cart.setSessionId(sessionId);
+            Cart saved = cartRepository.save(cart);
+            return cartMapper.toDto(saved);
         }
 
         List<CartItemProductProjection> projections = cartItemRepository.findCartItemsWithProductInfo(cart.getId());
 
-        List<CartItemDTO> result = projections.stream().map(p -> new CartItemDTO(p.getProductId(), p.getQuantity(), p.getUnitPrice(),
-                new ProductInfoDTO(p.getName(), p.getDescription(), p.getImageUrl(), p.getTotalStock()))).toList();
-        log.info("Loaded {} cart items from database for cartId={} (set in cache with Key='session:{}')", result.size(), cart.getId(), sessionId);
-        return new CartDTO(cart.getId(), result);
+        CartDTO cartDTO = cartMapper.toDtoFromProjections(cart.getId(), projections);
+        log.info("Loaded {} cart items from database for cartId={} (set in cache with Key='session:{}')", projections.size(), cart.getId(), sessionId);
+        return cartDTO;
     }
 
 
@@ -61,7 +78,7 @@ public class CartServiceImpl implements CartService {
     @Transactional
     @Caching(evict = {
             @CacheEvict(value = "cart", key = "'session:' + #sessionId")})
-    public void addToCart(String email, String sessionId, Long productId, BigDecimal unitPrice, int quantity) {
+    public void addToCart(String email, String sessionId, Long productId, BigDecimal unitPrice, int quantity) throws AccessDeniedException {
         if (quantity <= 0) {
             throw new IllegalArgumentException("Quantity must be greater than zero");
         }
@@ -69,29 +86,16 @@ public class CartServiceImpl implements CartService {
         Cart cart = findActiveCartOrNull(email, sessionId);
 
         if (cart == null) {
-            cart = new Cart();
-            cart.setStatus(CartStatus.ACTIVE);
-            if (email != null && !email.isBlank()) {
-                Customer customer = customerRepository.findByEmail(email).orElseThrow(() -> new ResourceNotFoundException("Customer with email {" + email + "} not found"));
-                cart.setCustomer(customer);
-                cart.setSessionId(sessionId);
-                log.info("Created new cart for customer '{}'", email);
-            } else {
-                cart.setSessionId(sessionId);
-                log.info("Created new cart for session '{}'", sessionId);
-            }
-            cart = cartRepository.save(cart);
+            throw new AccessDeniedException("Unauthorized access");
         }
 
-        Cart finalCart = cart;
-
-        CartItem item = cartItemRepository.findByCartIdAndProductId(finalCart.getId(), productId).map(existingItem -> {
+        CartItem item = cartItemRepository.findByCartIdAndProductId(cart.getId(), productId).map(existingItem -> {
             existingItem.setQuantity(existingItem.getQuantity() + quantity);
             log.info("Updated existing cart item: productId={}, newQuantity={}", productId, existingItem.getQuantity());
             return existingItem;
         }).orElseGet(() -> {
             CartItem newItem = new CartItem();
-            newItem.setCart(finalCart);
+            newItem.setCart(cart);
             newItem.setProductId(productId);
             newItem.setUnitPrice(unitPrice); //Todo::  تأكد من أنك تثق بهذا السعر أو حمّله من قاعدة البيانات
             newItem.setQuantity(quantity);

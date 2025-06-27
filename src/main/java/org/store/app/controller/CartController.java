@@ -17,6 +17,8 @@ import org.store.app.dto.CartDTO;
 import org.store.app.dto.UpdateCartRequest;
 import org.store.app.service.CartService;
 
+import java.nio.file.AccessDeniedException;
+
 import static org.store.app.util.RequestUtils.*;
 
 @RestController
@@ -48,7 +50,7 @@ public class CartController {
             @Parameter(name = "sessionId", in = ParameterIn.COOKIE, description = "Session ID cookie for guest customers")
     })
     @PostMapping("/add")
-    public ResponseEntity<Void> addToCart(HttpServletRequest servletRequest, @RequestBody @Valid AddToCartRequest request) {
+    public ResponseEntity<Void> addToCart(HttpServletRequest servletRequest, @RequestBody @Valid AddToCartRequest request) throws AccessDeniedException {
         String email = getCurrentUserEmail();
         String sessionId = resolveSessionId(servletRequest);
         validateSessionOrEmail(email, sessionId);
