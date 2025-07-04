@@ -16,7 +16,7 @@ import java.io.Serializable;
 public class ProductReviewDTO extends BaseDTO implements Serializable {
 
     private Long productId;
-    private CustomerDTO customer;
+    private String reviewerName;
     private Double rating;
     private String review;
 

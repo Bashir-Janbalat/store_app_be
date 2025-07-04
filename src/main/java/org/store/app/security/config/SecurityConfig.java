@@ -60,6 +60,7 @@ public class SecurityConfig {
                         authorize.requestMatchers("/api/checkout/webhook").permitAll();
                         authorize.requestMatchers("/api/cart/**").permitAll();
                         authorize.requestMatchers("/api/wishlist/**").permitAll();
+                        authorize.requestMatchers(HttpMethod.GET, "/api/products/*/reviews").permitAll();
                         authorize.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
                         authorize.requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll();
                         authorize.anyRequest().authenticated();
