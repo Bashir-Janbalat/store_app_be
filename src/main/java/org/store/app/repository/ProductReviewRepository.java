@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 import org.store.app.model.ProductReview;
 
 import java.util.List;
+import java.util.Set;
 
 @Repository
 public interface ProductReviewRepository extends JpaRepository<ProductReview, Long> {
@@ -17,4 +18,7 @@ public interface ProductReviewRepository extends JpaRepository<ProductReview, Lo
 
     @Query(value = "SELECT id FROM products WHERE id = :productId", nativeQuery = true)
     Long findProductId(@Param("productId") Long productId);
+
+    @Query("SELECT r.productId FROM ProductReview r WHERE r.customer.id = :customerId")
+    Set<Long> findProductIdsReviewedByCustomer(@Param("customerId") Long customerId);
 }

@@ -11,6 +11,7 @@ import org.store.app.model.OrderItem;
 public interface OrderItemMapper {
 
     /* معلومات المنتج سيتم جلبهم بشكل منفصل */
+    @Mapping(target = "canReview", ignore = true)
     @Mapping(target = "ProductInfo", ignore = true)
     OrderItemDTO toDto(OrderItem orderItem);
 

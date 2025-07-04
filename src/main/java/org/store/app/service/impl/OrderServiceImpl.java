@@ -24,6 +24,7 @@ import org.store.app.projection.ProductInfoProjection;
 import org.store.app.repository.CustomerAddressRepository;
 import org.store.app.repository.CustomerRepository;
 import org.store.app.repository.OrderRepository;
+import org.store.app.repository.ProductReviewRepository;
 import org.store.app.service.CartService;
 import org.store.app.service.CustomerAddressService;
 import org.store.app.service.EmailService;
@@ -50,6 +51,7 @@ public class OrderServiceImpl implements OrderService {
     private final CartService cartService;
     private final OrderItemMapper orderItemMapper;
     private final CacheManager cacheManager;
+    private final ProductReviewRepository reviewRepository;
 
 
     @Override
@@ -70,6 +72,9 @@ public class OrderServiceImpl implements OrderService {
                         ProductInfoProjection::getProductId,
                         p -> new ProductInfoDTO(p.getName(), p.getDescription(), p.getImageUrl()),
                         (existing, replacement) -> existing));
+
+        Set<Long> reviewedProductIds = reviewRepository.findProductIdsReviewedByCustomer(customerId);
+
         for (OrderDTO orderDTO : ordersDTOS) {
             for (OrderItemDTO item : orderDTO.getItems()) {
                 ProductInfoDTO productInfoDTO = productInfoMap.get(item.getProductId());
@@ -77,6 +82,9 @@ public class OrderServiceImpl implements OrderService {
                     throw new ResourceNotFoundException("Product not found with id: " + item.getProductId());
                 }
                 item.setProductInfo(productInfoDTO);
+
+                boolean canReview = !reviewedProductIds.contains(item.getProductId());
+                item.setCanReview(canReview);
             }
         }
         log.info("Found {} orders for customer id: {}", ordersDTOS.size(), customerId);
