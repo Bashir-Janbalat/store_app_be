@@ -10,10 +10,14 @@ import org.store.app.model.ProductReview;
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING)
 public interface ProductReviewMapper {
 
-    @Mapping(source = "customer.id", target = "customerId")
+    @Mapping(source = "customer.name", target = "customer.name")
+    @Mapping(source = "customer.email", target = "customer.email")
+    @Mapping(source = "customer.phone", target = "customer.phone")
+    @Mapping(source = "customer.countryCode", target = "customer.countryCode")
+    @Mapping(source = "customer.dialCode", target = "customer.dialCode")
+    @Mapping(source = "customer.roles", target = "customer.roles")
     ProductReviewDTO toDto(ProductReview entity);
 
-    @Mapping(source = "customerId", target = "customer.id")
     ProductReview toEntity(ProductReviewDTO dto);
 
 }
