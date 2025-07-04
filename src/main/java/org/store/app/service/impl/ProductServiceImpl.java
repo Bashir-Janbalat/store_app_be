@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.store.app.common.ValueWrapper;
@@ -33,7 +34,10 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "productReviews", key = "#productId")
+    @Caching(evict = {
+            @CacheEvict(value = "productReviews", key = "#productId"),
+            @CacheEvict(value = "orders", key = "#customerId + '-DELIVERED'"),
+    })
     public void AddReview(Long customerId, Long productId, Double rating, String review) {
         log.info("Adding review for productId={} by customerId={}", productId, customerId);
 
