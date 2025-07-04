@@ -90,7 +90,8 @@ public class OrderServiceImpl implements OrderService {
             @CacheEvict(value = "orders", key = "#customerId + '-PROCESSING'"),
             @CacheEvict(value = "orders", key = "#customerId + '-SHIPPED'"),
             @CacheEvict(value = "orders", key = "#customerId + '-DELIVERED'"),
-            @CacheEvict(value = "orders", key = "#customerId + '-CANCELLED'")
+            @CacheEvict(value = "orders", key = "#customerId + '-CANCELLED'"),
+            @CacheEvict(value = "purchasedOrders", allEntries = true)
     })
     public OrderResponseCreatedDTO createOrder(Long billingAddressId, Long customerId) {
         log.info("Creating order for customerId: {}", customerId);
@@ -137,13 +138,21 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public Order updateOrderStatus(Long orderId, OrderStatus newStatus, Long currentCustomerId) {
+    @Caching(evict = {
+            @CacheEvict(value = "orders", key = "#customerId + '-PENDING'"),
+            @CacheEvict(value = "orders", key = "#customerId + '-PROCESSING'"),
+            @CacheEvict(value = "orders", key = "#customerId + '-SHIPPED'"),
+            @CacheEvict(value = "orders", key = "#customerId + '-DELIVERED'"),
+            @CacheEvict(value = "orders", key = "#customerId + '-CANCELLED'"),
+            @CacheEvict(value = "purchasedOrders", allEntries = true)
+    })
+    public Order updateOrderStatus(Long orderId, OrderStatus newStatus, Long customerId) {
         log.info("Updating order status. Order ID: {}, New Status: {}", orderId, newStatus);
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
 
         Long orderOwnerId = order.getCustomer().getId();
 
-        if (!orderOwnerId.equals(currentCustomerId)) {
+        if (!orderOwnerId.equals(customerId)) {
             throw new AccessDeniedException("You are not allowed to update this order.");
         }
         OrderStatus oldStatus = order.getStatus();
@@ -202,6 +211,13 @@ public class OrderServiceImpl implements OrderService {
 
         emailService.sendSimpleMail(customer.getEmail(), subject, body);
         log.info("Order confirmation email sent to {}", customer.getEmail());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = "purchasedOrders", key = "#customerId + '-' + #productId + '-' + #status")
+    public boolean hasCustomerPurchasedProduct(Long customerId, Long productId, OrderStatus status) {
+        return orderRepository.hasCustomerPurchasedProduct(customerId, productId, status);
     }
 
     private boolean isValidStatusTransition(OrderStatus from, OrderStatus to) {

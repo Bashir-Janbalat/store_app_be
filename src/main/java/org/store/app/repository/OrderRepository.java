@@ -32,4 +32,12 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             """, nativeQuery = true)
     List<ProductInfoProjection> findProductInfosByIds(@Param("productIds") Set<Long> productIds);
 
+    @Query("SELECT COUNT(oi) > 0 FROM OrderItem oi " +
+           "WHERE oi.order.customer.id = :customerId " +
+           "AND oi.productId = :productId " +
+           "AND oi.order.status = :status")
+    boolean hasCustomerPurchasedProduct(@Param("customerId") Long customerId,
+                                        @Param("productId") Long productId,
+                                        @Param("status") OrderStatus status);
+
 }

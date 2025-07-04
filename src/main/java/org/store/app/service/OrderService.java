@@ -18,4 +18,5 @@ public interface OrderService {
 
      void sendOrderConfirmationEmail(Long orderId, String currency);
 
+    boolean hasCustomerPurchasedProduct(Long customerId, Long productId,OrderStatus status);
 }
