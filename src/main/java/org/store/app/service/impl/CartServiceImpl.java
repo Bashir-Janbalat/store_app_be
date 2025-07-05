@@ -246,11 +246,12 @@ public class CartServiceImpl implements CartService {
             // أبقاء السيشن في حال أنتهت صالحية التوكن
             userCart.setSessionId(sessionCart.getSessionId());
             cartRepository.save(userCart);
+            cartItemRepository.deleteAll(itemsToDelete);
+            cartItemRepository.flush();
             // حذف السلة المؤقتة إذا فارغة الآن
             if (cartItemRepository.findByCart(sessionCart).isEmpty()) {
                 cartRepository.delete(sessionCart);
             }
-            cartItemRepository.deleteAll(itemsToDelete);
         }
         log.info("Merged session cart into customer cart for email='{}', sessionId='{}'", email, sessionId);
         logCacheEvict(sessionId);
