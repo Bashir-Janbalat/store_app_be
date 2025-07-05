@@ -19,6 +19,7 @@ import org.store.app.repository.CartItemRepository;
 import org.store.app.repository.CartRepository;
 import org.store.app.repository.CustomerRepository;
 import org.store.app.service.CartService;
+import org.store.app.service.InventoryQueryService;
 
 import java.math.BigDecimal;
 import java.nio.file.AccessDeniedException;
@@ -36,6 +37,7 @@ public class CartServiceImpl implements CartService {
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
     private final CustomerRepository customerRepository;
+    private final InventoryQueryService inventoryQueryService;
     private final CartMapper cartMapper;
 
     @Override
@@ -88,6 +90,13 @@ public class CartServiceImpl implements CartService {
         if (cart == null) {
             throw new AccessDeniedException("Unauthorized access");
         }
+        int availableStock = inventoryQueryService.getAvailableStock(productId);
+        int existingQuantity = cartItemRepository.findQuantityByCartIdAndProductId(cart.getId(), productId).orElse(0);
+        int requestedTotalQuantity = existingQuantity + quantity;
+
+        if (requestedTotalQuantity > availableStock) {
+            throw new IllegalArgumentException("Out of stock");
+        }
 
         CartItem item = cartItemRepository.findByCartIdAndProductId(cart.getId(), productId).map(existingItem -> {
             existingItem.setQuantity(existingItem.getQuantity() + quantity);
@@ -115,18 +124,25 @@ public class CartServiceImpl implements CartService {
         String identifier = email != null ? email : sessionId;
         log.info("Updating quantity for productId={} in cart for '{}'. New quantity: {}", productId, identifier, newQuantity);
 
+        if (newQuantity <= 0) {
+            removeFromCart(email, sessionId, productId);
+            return;
+        }
+
         Cart cart = findActiveCart(email, sessionId);
 
-        CartItem item = cartItemRepository.findByCartIdAndProductId(cart.getId(), productId).orElseThrow(() -> new ResourceNotFoundException("Item not found in cart"));
-
-        if (newQuantity <= 0) {
-            cartItemRepository.delete(item);
-            log.info("Removed productId={} from cart (quantity <= 0)", productId);
-        } else {
-            item.setQuantity(newQuantity);
-            cartItemRepository.save(item);
-            log.info("Updated productId={} to quantity={}", productId, newQuantity);
+        int availableStock = inventoryQueryService.getAvailableStock(productId);
+        if (newQuantity > availableStock) {
+            throw new IllegalArgumentException("Out of stock");
         }
+
+        CartItem item = cartItemRepository.findByCartIdAndProductId(cart.getId(), productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Item not found in cart"));
+
+        item.setQuantity(newQuantity);
+        cartItemRepository.save(item);
+        log.info("Updated productId={} to quantity={}", productId, newQuantity);
+
         logCacheEvict(sessionId);
     }
 
