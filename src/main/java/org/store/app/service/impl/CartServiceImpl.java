@@ -24,6 +24,7 @@ import org.store.app.service.InventoryQueryService;
 import java.math.BigDecimal;
 import java.nio.file.AccessDeniedException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -211,26 +212,35 @@ public class CartServiceImpl implements CartService {
             List<CartItem> userItems = cartItemRepository.findByCart(userCart);
 
             Map<Long, CartItem> userItemsMap = userItems.stream().collect(Collectors.toMap(CartItem::getProductId, item -> item));
-
+            List<CartItem> itemsToDelete = new ArrayList<>();
             for (CartItem sessionItem : sessionItems) {
                 CartItem userItem = userItemsMap.get(sessionItem.getProductId());
+                int availableStock = inventoryQueryService.getAvailableStock(sessionItem.getProductId());
+                int desiredQuantity = sessionItem.getQuantity();
+                if (userItem != null) {
+                    desiredQuantity += userItem.getQuantity();
+                }
+                if (desiredQuantity > availableStock) {
+                    log.warn("Insufficient stock for productId={}, requested={}, available={}, email={}",
+                            sessionItem.getProductId(), desiredQuantity, availableStock, email);
+                }
+                int finalQuantity = Math.min(desiredQuantity, availableStock);
                 if (userItem != null) {
                     // دمج الكميات
-                    userItem.setQuantity(userItem.getQuantity() + sessionItem.getQuantity());
+                    userItem.setQuantity(finalQuantity);
                     cartItemRepository.save(userItem);
-                    cartItemRepository.delete(sessionItem);
+                    itemsToDelete.add(sessionItem);
                 } else {
                     // إنشاء عنصر جديد للسلة الجديدة
-
                     CartItem newItem = new CartItem();
                     newItem.setCart(userCart);
                     newItem.setProductId(sessionItem.getProductId());
-                    newItem.setQuantity(sessionItem.getQuantity());
+                    newItem.setQuantity(finalQuantity);
                     newItem.setUnitPrice(sessionItem.getUnitPrice());
                     cartItemRepository.save(newItem);
 
                     // حذف العنصر من السلة المؤقتة
-                    cartItemRepository.delete(sessionItem);
+                    itemsToDelete.add(sessionItem);
                 }
             }
             // أبقاء السيشن في حال أنتهت صالحية التوكن
@@ -240,6 +250,7 @@ public class CartServiceImpl implements CartService {
             if (cartItemRepository.findByCart(sessionCart).isEmpty()) {
                 cartRepository.delete(sessionCart);
             }
+            cartItemRepository.deleteAll(itemsToDelete);
         }
         log.info("Merged session cart into customer cart for email='{}', sessionId='{}'", email, sessionId);
         logCacheEvict(sessionId);
