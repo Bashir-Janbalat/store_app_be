@@ -23,7 +23,7 @@ import java.util.List;
 import static org.store.app.util.RequestUtils.*;
 
 @RestController
-@RequestMapping("/api/wishlist")
+@RequestMapping("/store/api/wishlist")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Wishlist", description = "Manage customer wishlist")

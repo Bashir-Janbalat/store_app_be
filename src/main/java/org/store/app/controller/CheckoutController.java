@@ -19,7 +19,7 @@ import org.store.app.service.CheckoutService;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/checkout")
+@RequestMapping("/store/api/checkout")
 @RequiredArgsConstructor
 public class CheckoutController {
 

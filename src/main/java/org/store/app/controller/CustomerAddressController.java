@@ -16,7 +16,7 @@ import org.store.app.service.CustomerAddressService;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/addresses")
+@RequestMapping("/store/api/addresses")
 @RequiredArgsConstructor
 @Tag(name = "Customer Address API", description = "Manage customer addresses")
 public class CustomerAddressController {

@@ -21,7 +21,7 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/orders")
+@RequestMapping("/store/api/orders")
 @RequiredArgsConstructor
 @Tag(name = "Order API", description = "Operations related to customer orders")
 public class OrderController {

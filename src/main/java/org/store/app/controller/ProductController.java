@@ -20,7 +20,7 @@ import org.store.app.service.ProductService;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/products")
+@RequestMapping("/store/api/products")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Products", description = "Operations related to product listing and reviews")

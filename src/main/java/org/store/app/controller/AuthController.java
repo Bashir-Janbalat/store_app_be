@@ -28,7 +28,7 @@ import java.util.Optional;
 
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/store/api/auth")
 @Slf4j
 @Tag(name = "Authentication", description = "Endpoints for customer authentication and password management")
 public class AuthController {

@@ -22,7 +22,7 @@ import java.nio.file.AccessDeniedException;
 import static org.store.app.util.RequestUtils.*;
 
 @RestController
-@RequestMapping("/api/cart")
+@RequestMapping("/store/api/cart")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Cart", description = "Manage customer shopping cart")
