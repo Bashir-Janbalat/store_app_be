@@ -52,7 +52,7 @@ public class SecurityConfig {
         } else {
             http.cors(Customizer.withDefaults())
                     .csrf(csrf -> csrf
-                            .ignoringRequestMatchers("/store/api/auth/**","/api/checkout/webhook")
+                            .ignoringRequestMatchers("/store/api/auth/**","/store/api/checkout/webhook")
                             .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                             .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
                     ).authorizeHttpRequests((authorize) -> {
