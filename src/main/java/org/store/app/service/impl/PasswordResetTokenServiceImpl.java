@@ -37,7 +37,7 @@ public class PasswordResetTokenServiceImpl implements PasswordResetTokenService 
     public PasswordResetToken createTokenFor(String email) {
         Customer customer = customerRepository.findByEmail(email).orElseThrow(() -> new ResourceNotFoundException("Customer not found: " + email));
         String jwtToken = jwtTokenProvider.generatePasswordResetToken(customer.getEmail());
-        String resetLink = domain + "reset-password" + "?token=" + jwtToken;
+        String resetLink = domain + "/reset-password" + "?token=" + jwtToken;
         PasswordResetToken token = PasswordResetToken.builder()
                 .token(jwtToken)
                 .customer(customer)
