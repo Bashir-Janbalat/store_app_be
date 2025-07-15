@@ -32,4 +32,6 @@ public class Customer extends BaseEntity {
     )
     private Set<Role> roles;
 
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified = false;
 }

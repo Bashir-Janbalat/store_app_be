@@ -17,10 +17,11 @@ public class CustomUserDetails implements UserDetails {
     private final String phone;
     private final String countryCode;
     private final String dialCode;
+    private final boolean enabled;
 
     public CustomUserDetails(Long id, String email, String name, String password,
                              String phone, String countryCode, String dialCode,
-                             Collection<? extends GrantedAuthority> authorities) {
+                             Collection<? extends GrantedAuthority> authorities,boolean enabled) {
         this.id = id;
         this.email = email;
         this.name = name;
@@ -29,6 +30,7 @@ public class CustomUserDetails implements UserDetails {
         this.countryCode = countryCode;
         this.dialCode = dialCode;
         this.authorities = authorities;
+        this.enabled = enabled;
     }
 
     @Override
@@ -63,6 +65,6 @@ public class CustomUserDetails implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return true;
+        return enabled;
     }
 }

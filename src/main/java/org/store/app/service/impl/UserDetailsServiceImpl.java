@@ -2,12 +2,15 @@ package org.store.app.service.impl;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.store.app.exception.EmailNotVerifiedException;
 import org.store.app.model.Customer;
 import org.store.app.repository.CustomerRepository;
 import org.store.app.security.userdetails.CustomUserDetails;
@@ -30,6 +33,9 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                     log.warn("Customer not found by email: {}", email);
                     return new UsernameNotFoundException("User not found: " + email);
                 });
+        if (!customer.isEmailVerified()) {
+            throw new EmailNotVerifiedException("Email not verified. Please check your inbox.");
+        }
 
         Set<SimpleGrantedAuthority> authorities = customer.getRoles().stream()
                 .map(role -> new SimpleGrantedAuthority(role.getName()))
@@ -43,7 +49,8 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 customer.getPhone(),
                 customer.getCountryCode(),
                 customer.getDialCode(),
-                authorities
+                authorities,
+                customer.isEmailVerified()
         );
     }
 }

@@ -72,4 +72,12 @@ public class CustomerServiceImpl implements CustomerService {
 
         customerRepository.save(customer);
     }
+
+    @Override
+    public void markEmailVerified(String email) {
+        Customer customer = customerRepository.findByEmail(email).orElseThrow(() ->
+                new ResourceNotFoundException("Customer not found"));
+        customer.setEmailVerified(true);
+        customerRepository.save(customer);
+    }
 }

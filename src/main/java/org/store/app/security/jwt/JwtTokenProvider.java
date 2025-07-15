@@ -43,6 +43,12 @@ public class JwtTokenProvider {
     @Value("${jwt.reset.secret.key}")
     private String jwtResetSecret;
 
+    @Value("${jwt.email.verification.secret}")
+    private String jwtEmailVerificationSecret;
+
+    @Value("${jwt.email.verification.expiration.time}")
+    private long jwtEmailVerificationExpirationTime;
+
     private final RedisTemplate<String, String> redisTemplate;
 
     private final UserDetailsService userDetailsService;
@@ -178,5 +184,42 @@ public class JwtTokenProvider {
     public long getExpirationFromRefreshToken(String token) {
         return Jwts.parser().verifyWith((SecretKey) getRefreshKey()).build().parseSignedClaims(token).getPayload().getExpiration().getTime();
 
+    }
+
+    // ---------  Email Verification Token ---------
+
+    public String generateEmailVerificationToken(String email) {
+        Date now = new Date();
+        Date expiry = new Date(now.getTime() + jwtEmailVerificationExpirationTime);
+
+        return Jwts.builder()
+                .subject(email)
+                .issuedAt(now)
+                .expiration(expiry)
+                .signWith(Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtEmailVerificationSecret)))
+                .compact();
+    }
+
+
+    public boolean validateEmailVerificationToken(String token) {
+        try {
+            Jwts.parser()
+                    .verifyWith(Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtEmailVerificationSecret)))
+                    .build()
+                    .parse(token);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+
+    public String getEmailFromEmailVerificationToken(String token) {
+        return Jwts.parser()
+                .verifyWith(Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtEmailVerificationSecret)))
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .getSubject();
     }
 }

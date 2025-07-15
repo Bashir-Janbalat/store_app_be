@@ -24,6 +24,7 @@ import org.store.app.security.userdetails.CustomUserDetails;
 import org.store.app.service.*;
 import org.store.app.service.impl.UserDetailsServiceImpl;
 
+import java.net.URI;
 import java.util.Optional;
 
 @RequiredArgsConstructor
@@ -41,9 +42,13 @@ public class AuthController {
     private final WishlistService wishlistService;
     private final CookieProperties cookieProperties;
     private final UserDetailsServiceImpl userDetailsService;
+    private final EmailVerificationTokenService emailVerificationTokenService;
 
     @Value("${jwt.expiration.time}")
     private long jwtExpirationTime;
+
+    @Value("${domain}")
+    private String domain;
 
     private Long getMaxAgeAccessToken() {
         return jwtExpirationTime / 1000;
@@ -205,6 +210,34 @@ public class AuthController {
             return ResponseEntity.ok("Password successfully reset.");
         }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid or expired token.");
+    }
+
+    @Operation(summary = "Verify customer email", description = "Activate customer account via email verification link")
+    @GetMapping("/verify-email")
+    public ResponseEntity<Void> verifyEmail(@RequestParam("token") String token) {
+        Optional<EmailVerificationTokenDTO> opt = emailVerificationTokenService.validateToken(token);
+        if (opt.isPresent()) {
+            customerService.markEmailVerified(opt.get().getEmail());
+            emailVerificationTokenService.markTokenAsUsedByToken(token);
+            URI redirectUri = URI.create(domain + "/verified?status=success");
+            HttpHeaders headers = new HttpHeaders();
+            headers.setLocation(redirectUri);
+            return new ResponseEntity<>(headers, HttpStatus.FOUND);
+        }
+        URI redirectUri = URI.create(domain + "/verified?status=failed");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setLocation(redirectUri);
+        return new ResponseEntity<>(headers, HttpStatus.FOUND);
+    }
+
+    @Operation(
+            summary = "Resend email verification link",
+            description = "Send a new email verification link to the customer's email if the account is not yet verified."
+    )
+    @PostMapping("/resend-verification-link")
+    public ResponseEntity<?> resendVerificationLink(@RequestParam String email) {
+        emailVerificationTokenService.resendVerificationLink(email);
+        return ResponseEntity.ok("Verification link resent.");
     }
 
     private ResponseCookie createCookie(String name, String value, long maxAge) {

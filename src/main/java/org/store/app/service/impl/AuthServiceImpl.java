@@ -13,6 +13,7 @@ import org.store.app.dto.LoginDTO;
 import org.store.app.security.jwt.JwtTokenProvider;
 import org.store.app.service.AuthService;
 import org.store.app.service.CustomerService;
+import org.store.app.service.EmailVerificationTokenService;
 
 @Slf4j
 @Service
@@ -22,6 +23,7 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider jwtTokenProvider;
     private final CustomerService customerService;
+    private final EmailVerificationTokenService emailVerificationTokenService;
 
     @Override
     public String login(LoginDTO loginDto) {
@@ -48,6 +50,7 @@ public class AuthServiceImpl implements AuthService {
     public void signup(CustomerDTO customerDTO) {
         log.info("Customer '{}' attempting to sign up", customerDTO.getEmail());
         customerService.createCustomer(customerDTO);
+        emailVerificationTokenService.createTokenFor(customerDTO.getEmail());
         log.info("Customer '{}' successfully signed up", customerDTO.getEmail());
     }
 

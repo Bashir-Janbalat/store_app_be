@@ -19,6 +19,7 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.store.app.exception.EmailNotVerifiedException;
 import org.store.app.exception.ErrorResponse;
 import org.store.app.security.jwt.JwtTokenProvider;
 
@@ -72,6 +73,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         } catch (JwtException ex) {
             logger.warn("Invalid JWT: {}", ex.getMessage());
             sendErrorResponse(response, "JWT token is invalid.", HttpStatus.UNAUTHORIZED, request.getRequestURI());
+        } catch (EmailNotVerifiedException ex) {
+            logger.warn("Email not verified: {}", ex.getMessage());
+            sendErrorResponse(response, "Email not verified. Please verify your email address.", HttpStatus.FORBIDDEN, request.getRequestURI());
         } catch (Exception ex) {
             logger.error("Unexpected JWT validation error: {}", ex.getMessage(), ex);
             sendErrorResponse(response, "Authentication service unavailable. Please try again later.", HttpStatus.INTERNAL_SERVER_ERROR, request.getRequestURI());
