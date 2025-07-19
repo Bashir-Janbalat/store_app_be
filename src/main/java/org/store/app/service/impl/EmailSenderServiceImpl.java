@@ -41,6 +41,7 @@ public class EmailSenderServiceImpl implements EmailService {
         try {
             MimeMessageHelper helper = new MimeMessageHelper(message, true);
             helper.setTo(to);
+            helper.setFrom(mailUser);
             helper.setSubject(subject);
             helper.setText(htmlBody, true);
             mailSender.send(message);
