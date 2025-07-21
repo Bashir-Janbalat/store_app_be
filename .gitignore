@@ -35,3 +35,4 @@ build/
 ### App ###
 .env
 build_and_run.bat
+docker-compose-local.yml
